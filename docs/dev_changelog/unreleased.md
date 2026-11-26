@@ -34,3 +34,19 @@
   - 严格校验鹰角通行证业务状态字段 `json?.status === 0`（移除 `?? json?.code` 回退），确保仅返回 `{ code: 0 }` 时明确报错；`parseHyTokenInput` 对非法百分号编码返回 `null`；`qrWait` 结合实耗时间与累计等待间隔，保证注入 `sleep` 的超时测试不空转。
   - CLI 注册表将选项解析集中至 `src/cli/context.ts`（`OPTIONS` 超集），后续模块只需新增命令文件并在 `commands/index.ts` 追加一行。
 - **验证**：`tsc -p tsconfig.json` 0 error；`vitest run` 7 个测试文件共 46 passed（新增 23 条，含 Windows 真实 DPAPI 加解密往返）；`tsx src/cli/index.ts --help` 列出 `login`/`logout`，`tsx src/cli/index.ts scan` 重构前后输出一致。未覆盖（留待 W6 实机验证）：扫码登录三接口真实响应、`query_role_list.uid` 与 `bindingList[].uid` 是否等值、同绑定多角色换票落点。
+
+### [W1] — 分析引擎（保底 / 歪 / UP / 徽章 / 分组）
+> **涵盖提交**：分支 `feat/w1-analysis`（见 `git log`）。
+>
+> **代码改动概况**：
+> - `src/core/analysis/{config,types,common,up,char,weapon,summary,index}.ts`、`src/core/data/up-map.json`：实现零状态纯函数分析引擎 `analyzeAccount`，覆盖 5 类角色池与 3 类武器池小/大保底、跨池共享、Rerun 按池名跨版本归并及官方计数封顶、Joint 独立计数、免费抽隔离、歪/UP 判定、徽章（`十连双金` / `九蓝一紫`，自动跳过 `lcx:` 占位批次）与分 Tab 总览。
+> - `src/core/storage/store.ts`：在 W1 标记区块追加 `getAllPools(): PoolInfo[]`。
+> - `src/cli/context.ts`、`src/cli/commands/stats.ts`：新增 `--analysis` 选项输出 `analyzeAccount` JSON（默认通过 `maskKey` 脱敏，`--show-ids` 才明文）。
+> - `tsconfig.json`、`.gitignore`：启用 `resolveJsonModule: true`，保证 `tsc -p tsconfig.build.json` 正确输出 `dist/core/data/up-map.json`；在 `.gitignore` 白名单放行 `src/core/data/`，避免被运行期 `data/` 规则误忽略。
+> - `tests/analysis.test.ts`、`docs/DEVELOPER.md`：新增 14 条纯函数/Store/CLI 脱敏测试，并补充分析引擎模块文档与风险标注。
+
+- **根因与关键决策**：
+  - `config.ts`、`types.ts`、`common.ts` 保持零 Node 依赖，供后续 W4 Web UI 直接复用；`char.ts` 与 `tabOf()` 共用 Tab 映射避免两处漂移。
+  - 规则取自社区实现 `bhaoo/endfield-gacha`（MIT），非官方文档；`GachaRecord` 暂缺 `poolVersion`，重构池按版本重置小保底本期不实现；徽章与绿/黄/粉/超欧/超非阈值均为实机截图推断，集中于 `config.ts` 以便统一调整。
+  - `index.ts` 对未知 UP 提示仅针对非 `Standard` / `Beginner` / `constant` 池；`freeBatches` 按 W1 规划先留空数组 `[]`。
+- **验证**：`tsc -p tsconfig.json`、`tsc -p tsconfig.build.json`（已生成 `dist/core/data/up-map.json`）0 error；`vitest run` 8 个测试文件共 60 passed（新增 14 条）；对本机冒烟库只读聚合校验通过（`limited total=399, count6=8`，无 `NaN`/负数，`pending < smallPityMax`）。未覆盖：`freeBatches` 免费十连批次明细（第二阶段）、重构池按 `poolVersion` 重置小保底、真实数据多池同 `gachaTs` 批次假设（待 W6 验证）。

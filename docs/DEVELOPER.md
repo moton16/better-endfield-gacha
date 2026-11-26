@@ -26,9 +26,11 @@
 ```text
 ├── src/
 │   ├── core/
+│   │   ├── analysis/     # W1：保底/歪/UP/徽章/分组纯函数分析引擎
 │   │   ├── cache/        # 路线 A：blockfile 解析、simplecache(前瞻)、目录发现、凭据提取
 │   │   ├── api/          # ef-webview 客户端 + 响应归一化
 │   │   ├── auth/         # 路线 A 反查（role.ts）；路线 B 通行证/DPAPI/保险库（passport.ts/dpapi.ts/vault.ts）
+│   │   ├── data/         # 静态回退映射（up-map.json）
 │   │   ├── storage/      # SQLite（node:sqlite）
 │   │   ├── sync/         # 全卡池拉取与增量入库
 │   │   ├── route-a.ts    # 路线 A 编排
@@ -70,6 +72,7 @@ CLI / (未来)本地 HTTP + Web UI
 | `api/normalize.ts` | 响应归一化 | `normalizeCharRecord/WeaponRecord/PoolContent` | `kind` 缺失视为 `draw`；`seqId` 一律字符串 + `compareSeqId` |
 | `sync/sync.ts` | 全池拉取 | `syncAccount` | 角色池 = meta ∪ 5 枚举（meta 未提供的池失败记为 skipped）；武器先 `/weapon/pool` 再逐池，重构池单池失败回退 `pool_ids` 合并 |
 | `storage/store.ts` | SQLite | `GachaStore` | 主键 `(account_key, feed, seq_id)`；永不删除记录（90 天窗口之外的旧数据靠本地保留） |
+| `analysis/*`、`data/up-map.json` | 抽卡分析引擎与静态 UP 回退 | `analyzeAccount`, `badges`, `makeUpResolver`, `RULES`, `DISPLAY` | ⚠️ 保底/共享规则来自社区实现（`bhaoo/endfield-gacha`，MIT），非官方且**可能随版本变化**；`GachaRecord` 暂缺 `poolVersion`（重构申领按版本重置小保底本期未实现）；十连批次（同 `gachaTs`）/徽章（`十连双金`、`九蓝一紫`）及展示阈值均为实机截图**推断**；`config.ts`/`types.ts`/`common.ts` 保持零 Node 依赖；`up.ts` 使用静态 JSON import（需 `resolveJsonModule`） |
 | `auth/role.ts` | u8 token 反查角色 | `queryRoleList` | ⚠️ 返回的 `uid` 与路线 B `bindingList[].uid` 是否同值 **未实测**，若不同则 A/B 同一角色会落成两个账号键，需在 M2 做关联迁移 |
 | `auth/passport.ts` | 鹰角通行证接口与扫码登录 | `grantOAuth`, `listBindings`, `u8TokenByUid`, `parseHyTokenInput` | 业务状态字段严格为 `status === 0`（不是 `code`）；扫码三接口来自社区协议描述 **未实测**；错误消息经 `scrubUrl` 抹掉 token |
 | `auth/dpapi.ts`、`auth/vault.ts` | 通行证加密保险库 | `dpapi`, `Vault` | Windows 下用 `pwsh` 调 DPAPI（`CurrentUser`），明文走 stdin base64 传递；`list()` 不返回 `cipher`；损坏或版本不匹配文件视为空 |

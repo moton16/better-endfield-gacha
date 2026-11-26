@@ -13,6 +13,8 @@ docs/*
 
 # 运行期数据 / 凭据（严禁入库：真实 token、UID、抽卡记录、个人缓存）
 data/
+!src/core/data/
+!src/core/data/**
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm

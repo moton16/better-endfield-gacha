@@ -1,0 +1,4 @@
+{
+  "_comment": "pool_id → UP 六星 id。仅在 /api/content 取不到时回退；可手动补。键以 _ 开头的会被忽略。",
+  "special_1_0_1": { "up6Ids": [] }
+}

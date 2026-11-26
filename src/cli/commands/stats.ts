@@ -1,3 +1,4 @@
+import { analyzeAccount } from "../../core/analysis/index.js";
 import { GachaStore } from "../../core/storage/store.js";
 import type { Command } from "../types.js";
 import { maskKey } from "../util.js";
@@ -11,6 +12,20 @@ export const stats: Command = {
     const targetAccount = ctx.str("account");
     try {
       const list = targetAccount ? store.listAccounts().filter((a) => a.accountKey === targetAccount) : store.listAccounts();
+      if (ctx.bool("analysis")) {
+        const pools = store.getAllPools();
+        const analyses = list.map((a) =>
+          analyzeAccount({
+            accountKey: maskKey(a.accountKey, show),
+            records: store.getRecords(a.accountKey),
+            pools,
+            rerunChar: store.getRerunCounts(a.accountKey, "char"),
+            rerunWeapon: store.getRerunCounts(a.accountKey, "weapon"),
+          }),
+        );
+        console.log(JSON.stringify(analyses, null, 2));
+        return 0;
+      }
       const out: unknown[] = [];
       for (const a of list) {
         const byFeed = new Map<string, { draws: number; r6: number; r5: number; r4: number }>();

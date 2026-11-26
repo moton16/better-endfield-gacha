@@ -24,6 +24,7 @@ export const OPTIONS = {
   save: { type: "boolean" },
   "no-open": { type: "boolean" },
   "dry-run": { type: "boolean" },
+  analysis: { type: "boolean" },
   help: { type: "boolean", short: "h" },
 } as const;
 

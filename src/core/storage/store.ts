@@ -246,4 +246,18 @@ export class GachaStore {
       .all(accountKey, type) as any[];
     return rows.map((r) => ({ poolId: r.pool_id, poolName: r.pool_name, totalPullCount: r.total_pull_count }));
   }
+
+  // ==== W1 BEGIN
+  getAllPools(): PoolInfo[] {
+    const rows = this.db.prepare("SELECT * FROM pools").all() as any[];
+    return rows.map((r) => ({
+      poolId: r.pool_id,
+      gachaType: r.gacha_type,
+      poolName: r.pool_name,
+      poolType: r.pool_type,
+      up6Ids: JSON.parse(r.up6_ids),
+      versionNum: r.version_num,
+    }));
+  }
+  // ==== W1 END
 }
