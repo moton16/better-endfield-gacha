@@ -57,5 +57,22 @@ describe("web build smoke", () => {
     const { files, totalBytes } = walkSize(outDir);
     expect(files.length).toBeGreaterThanOrEqual(2);
     expect(totalBytes).toBeLessThan(200 * 1024);
+
+    // 校验打包产物（HTML/CSS 零 http URL；JS 仅允许标准 XML namespace 与 mock 示例字符串）
+    for (const f of files) {
+      if (/\.(html|css)$/i.test(f)) {
+        const text = fs.readFileSync(f, "utf8");
+        expect(text).not.toMatch(/https?:\/\//i);
+      } else if (/\.js$/i.test(f)) {
+        const text = fs.readFileSync(f, "utf8");
+        const urls = text.match(/https?:\/\/[^\s"'`)\\]+/gi) ?? [];
+        for (const u of urls) {
+          expect(
+            u.startsWith("http://www.w3.org/") ||
+              u.startsWith("https://ef-webview.hypergryph.com/page/gacha_char"),
+          ).toBe(true);
+        }
+      }
+    }
   });
 });

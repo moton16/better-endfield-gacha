@@ -6,6 +6,12 @@ export type Tab = "limited" | "weapon" | "standard" | "beginner";
 export type Tone = "green" | "yellow" | "pink";
 export type Luck = "ou" | "fei" | null; // 超欧 / 超非
 
+export interface SubHitSummary {
+  itemId: string;
+  itemName: string;
+  count: number;
+}
+
 export interface SixStarHit {
   itemId: string;
   itemName: string;
@@ -19,6 +25,8 @@ export interface SixStarHit {
   seqId: string;
   tone: Tone;
   luck: Luck;
+  /** 本次 6★ 保底周期内抽出的 5★ 聚合明细 */
+  subHits5?: SubHitSummary[];
 }
 
 export interface BigPity {
@@ -34,6 +42,25 @@ export interface FreeBatch {
   gachaTs: string;
   size: number;
   sixStars: number;
+}
+
+export interface WeaponTenRollItem {
+  itemId: string;
+  itemName: string;
+  rarity: number;
+  count: number;
+  isUp: boolean | null;
+  isNew: boolean;
+  isFree: boolean;
+  isGift: boolean;
+}
+
+export interface WeaponTenRoll {
+  /** 第 N 个十连（正序 1..K；仅含非抽卡赠品的批次为 0） */
+  rollIndex: number;
+  gachaTs: string;
+  drawCount: number;
+  items: WeaponTenRollItem[];
 }
 
 export interface PoolGroup {
@@ -53,9 +80,13 @@ export interface PoolGroup {
   upKnown: boolean;
   hits: SixStarHit[]; // 新 → 旧
   pending: number; // “垫”
+  /** 当前已垫期间（最近一个 6★ 之后）抽出的 5★ 聚合明细 */
+  pendingSubHits5?: SubHitSummary[];
   smallPityMax: number; // 柱宽分母（80/40）
   bigPity?: BigPity;
   freeBatches: FreeBatch[]; // 无 6★ 的免费批次，新 → 旧（第二阶段填充）
+  /** 武器池十连聚合条（新 → 旧，仅武器池填充） */
+  weaponTenRolls?: WeaponTenRoll[];
   isCurrent: boolean; // 该 feed 里最后（最新）的池
   firstTs: string;
   lastTs: string;
@@ -80,10 +111,24 @@ export interface TabOverview {
   luckCounts: { ou: number; fei: number };
 }
 
+export interface AccountGlobalSummary {
+  totalDraws: number;
+  totalFree: number;
+  totalNonDraw: number;
+  total6: number;
+  firstRecordTs: string | null;
+  globalBadges: BadgeCount[];
+  globalLuckCounts: { ou: number; fei: number };
+  avgPity6: number | null;
+  ratingLabel: string;
+  isLucky: boolean;
+}
+
 export interface AccountAnalysis {
   accountKey: string;
   generatedAt: number;
   overview: Record<Tab, TabOverview>;
+  global?: AccountGlobalSummary;
   groups: PoolGroup[]; // 已按 lastTs “新 → 旧”排序；前端按 group.tab 过滤
   notes: string[]; // 例如“某池 UP 信息缺失，未判定歪”
 }

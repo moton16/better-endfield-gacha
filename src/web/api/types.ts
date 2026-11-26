@@ -1,14 +1,18 @@
 export type {
   AccountAnalysis,
+  AccountGlobalSummary,
   BadgeCount,
   BigPity,
   FreeBatch,
   Luck,
   PoolGroup,
   SixStarHit,
+  SubHitSummary,
   Tab,
   TabOverview,
   Tone,
+  WeaponTenRoll,
+  WeaponTenRollItem,
 } from "../../core/analysis/types.js";
 
 export interface HealthResponse {

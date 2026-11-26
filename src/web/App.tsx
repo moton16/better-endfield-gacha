@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useState } from "preact/hooks";
+import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 import { ApiError, api, bootstrapKey, clearKey } from "./api/client.js";
 import { isMock } from "./api/mock.js";
 import type { AccountAnalysis, AccountSummary, Tab } from "./api/types.js";
-import { BadgeRow } from "./components/BadgeRow.js";
 import { DataDialog } from "./components/DataDialog.js";
 import { Header } from "./components/Header.js";
 import { KeyPrompt } from "./components/KeyPrompt.js";
@@ -11,6 +10,25 @@ import { PoolTabs } from "./components/PoolTabs.js";
 import { SummaryCards } from "./components/SummaryCards.js";
 import { SyncDialog } from "./components/SyncDialog.js";
 import { Toast } from "./components/Toast.js";
+import { deriveGlobalSummary } from "./lib/bar.js";
+
+const SHOW_FIVE_KEY = "beg.show5";
+
+function readShowFivePref(): boolean {
+  try {
+    return localStorage.getItem(SHOW_FIVE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function saveShowFivePref(val: boolean): void {
+  try {
+    localStorage.setItem(SHOW_FIVE_KEY, val ? "1" : "0");
+  } catch {
+    // 忽略受限环境
+  }
+}
 
 export function App() {
   const mock = isMock();
@@ -18,6 +36,7 @@ export function App() {
   const [accountKey, setAccountKey] = useState("");
   const [analysis, setAnalysis] = useState<AccountAnalysis | null>(null);
   const [tab, setTab] = useState<Tab>("limited");
+  const [showFiveStar, setShowFiveStar] = useState<boolean>(() => readShowFivePref());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [keyReason, setKeyReason] = useState<string | null>(null);
@@ -34,6 +53,14 @@ export function App() {
     const t = setTimeout(() => setToast(null), 3500);
     return () => clearTimeout(t);
   }, [toast]);
+
+  const handleToggleFiveStar = useCallback(() => {
+    setShowFiveStar((prev) => {
+      const next = !prev;
+      saveShowFivePref(next);
+      return next;
+    });
+  }, []);
 
   const handleAuthError = useCallback((err: unknown): boolean => {
     if (err instanceof ApiError && err.status === 401) {
@@ -112,11 +139,14 @@ export function App() {
     }
   }
 
-  const tabGroups = analysis ? analysis.groups.filter((g) => g.tab === tab) : [];
-  const activeOverview = analysis?.overview[tab];
+  const globalSummary = useMemo(
+    () => (analysis ? deriveGlobalSummary(analysis) : null),
+    [analysis],
+  );
+  const tabGroups = analysis ? analysis.groups.filter((g) => g.tab === tab && g.total > 0) : [];
 
   return (
-    <div>
+    <div class="app-shell">
       <Header
         accounts={accounts}
         accountKey={accountKey}
@@ -126,6 +156,8 @@ export function App() {
         onOpenSync={() => setDialog("sync")}
         onOpenData={() => setDialog("data")}
         mock={mock}
+        globalSummary={globalSummary}
+        onToast={showToast}
       />
 
       {error && (
@@ -159,23 +191,52 @@ export function App() {
         </div>
       )}
 
-      {analysis && (
+      {analysis && globalSummary && (
         <main>
           <SummaryCards
             overview={analysis.overview}
+            globalSummary={globalSummary}
             activeTab={tab}
             onSelectTab={setTab}
           />
 
-          {activeOverview && <BadgeRow overview={activeOverview} />}
+          <section class="view-record-area" aria-label="抽卡记录明细">
+            <PoolTabs
+              active={tab}
+              onChange={setTab}
+              showFiveStar={showFiveStar}
+              onToggleFiveStar={handleToggleFiveStar}
+            />
 
-          <PoolTabs active={tab} onChange={setTab} />
+            {tabGroups.length === 0 ? (
+              <div class="record-area-empty muted">当前分类下暂无抽卡记录。</div>
+            ) : (
+              <div class="pool-list">
+                {tabGroups.map((group) => (
+                  <PoolSection key={group.key} group={group} showFiveStar={showFiveStar} />
+                ))}
+              </div>
+            )}
+          </section>
 
-          {tabGroups.filter((g) => g.total > 0).length === 0 ? (
-            <div class="card empty-card muted">当前分类下暂无抽卡记录。</div>
-          ) : (
-            tabGroups.map((group) => <PoolSection key={group.key} group={group} />)
-          )}
+          <div class="footer-actions">
+            <button
+              type="button"
+              class="footer-data-btn"
+              onClick={() => setDialog("data")}
+            >
+              <svg viewBox="0 0 16 16" width="13" height="13" fill="none" aria-hidden="true">
+                <path
+                  d="M8 2.5v7.5M5 5.5L8 2.5l3 3M3 10.5v2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-2"
+                  stroke="currentColor"
+                  stroke-width="1.4"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+              <span>数据导入导出</span>
+            </button>
+          </div>
 
           {analysis.notes.length > 0 && (
             <div class="notes">

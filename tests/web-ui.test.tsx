@@ -9,6 +9,7 @@ beforeEach(() => {
   resetMockState();
   clearKey();
   sessionStorage.clear();
+  localStorage.clear();
   history.replaceState(null, "", "/?mock=1");
 });
 
@@ -17,48 +18,74 @@ afterEach(() => {
   vi.unstubAllGlobals();
   clearKey();
   sessionStorage.clear();
+  localStorage.clear();
   history.replaceState(null, "", "/");
 });
 
 describe("Web UI mock mode & interactions", () => {
-  it("renders summary cards, badges, pool groups, switches tabs and privacy mask", async () => {
+  it("renders summary cards, global badges, rating ribbon, tabs, show-5 toggle, weapon ten-rolls, and privacy mask", async () => {
+    const writeText = vi.fn(async () => {});
+    vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
+
     render(<App />);
 
-    // 3 summary cards
+    // Summary cards + rating ribbon + stamp
     await screen.findByText("135");
     const summary = within(screen.getByLabelText("抽卡总览"));
     expect(summary.getByText("135")).toBeTruthy();
     expect(summary.getByText("90")).toBeTruthy();
     expect(summary.getAllByText("45").length).toBeGreaterThanOrEqual(1);
+    expect(summary.getAllByText("40").length).toBeGreaterThanOrEqual(1);
     expect(summary.getByText("限定角色")).toBeTruthy();
     expect(summary.getByText("武器申领")).toBeTruthy();
     expect(summary.getByText("常驻池")).toBeTruthy();
+    expect(summary.getByText("启程池")).toBeTruthy();
+    expect(summary.getByText("天选大欧皇")).toBeTruthy();
+    expect(summary.getByText("本地统计自")).toBeTruthy();
 
-    // Badges on limited tab
+    // Global badges (aggregated across all tabs)
     expect(screen.getByText("十连双金 ×1")).toBeTruthy();
-    expect(screen.getByText("九蓝一紫 ×2")).toBeTruthy();
+    expect(screen.getByText("九蓝一紫 ×6")).toBeTruthy();
     expect(screen.getByText("超欧 ×2")).toBeTruthy();
-    expect(screen.getByText("超非 ×1")).toBeTruthy();
+    expect(screen.getByText("超非 ×2")).toBeTruthy();
 
-    // Pool groups on limited tab
+    // Pool groups on limited tab + multi-gold & free ribbons
     expect(screen.getByText("合成特许寻访二期")).toBeTruthy();
     expect(screen.getByText("合成重构寻访一期")).toBeTruthy();
+    expect(screen.getByText("免费十连")).toBeTruthy();
 
-    // Privacy masked by default
+    // Privacy masked by default -> copy blocked with toast, then toggle to plaintext and copy
     expect(screen.getByTestId("account-nickname").textContent).toBe("***");
+    fireEvent.click(screen.getByText(/^ID:/));
+    expect(await screen.findByText(/隐私遮罩已开启/)).toBeTruthy();
+    expect(writeText).not.toHaveBeenCalled();
+
     fireEvent.click(screen.getByRole("button", { name: "切换隐私遮罩" }));
     expect(screen.getByTestId("account-nickname").textContent).toBe("合成测试账号A");
+    fireEvent.click(screen.getByText(/^ID:/));
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith("cn_2_SYNTHUID001_SYNTHROLE001");
+    });
 
-    // Switch tab to weapon
-    fireEvent.click(screen.getByRole("tab", { name: "武器申领" }));
+    // Toggle 展示五星
+    const show5Btn = screen.getByRole("switch", { name: "展示五星" });
+    expect(show5Btn.getAttribute("aria-checked")).toBe("false");
+    fireEvent.click(show5Btn);
+    expect(show5Btn.getAttribute("aria-checked")).toBe("true");
+    expect(localStorage.getItem("beg.show5")).toBe("1");
+    expect(screen.getAllByLabelText("同周期五星").length).toBeGreaterThanOrEqual(1);
+
+    // Switch tab to weapon -> ten-roll rows + gift badge; global badges stay visible
+    fireEvent.click(screen.getByRole("tab", { name: "武器池" }));
     expect(screen.getByText("合成武器申领箱二")).toBeTruthy();
     expect(screen.getByText("合成武器申领箱一")).toBeTruthy();
+    expect(screen.getByText("赠")).toBeTruthy();
+    expect(screen.getByLabelText("第 5 个十连")).toBeTruthy();
     expect(screen.queryByText("合成特许寻访二期")).toBeNull();
-    // 3 summary cards remain visible
-    expect(screen.getByText("135")).toBeTruthy();
+    expect(screen.getByText("十连双金 ×1")).toBeTruthy();
 
     // Switch tab to standard & expand details
-    fireEvent.click(screen.getByRole("tab", { name: "常驻" }));
+    fireEvent.click(screen.getByRole("tab", { name: "常驻池" }));
     expect(screen.getByText("基础寻访")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "详情" }));
     expect(screen.getByText(/星级分布：6★ 1 · 5★ 5 · 4★ 39/)).toBeTruthy();
@@ -67,8 +94,12 @@ describe("Web UI mock mode & interactions", () => {
     fireEvent.change(screen.getByLabelText("切换账号"), {
       target: { value: "cn_1_SYNTHUID002_SYNTHROLE002" },
     });
-    fireEvent.click(screen.getByRole("tab", { name: "限定角色" }));
+    fireEvent.click(screen.getByRole("tab", { name: "限定池" }));
     expect(await screen.findByText("合成官服特许池")).toBeTruthy();
+
+    // Footer data import/export shortcut opens DataDialog
+    fireEvent.click(screen.getByRole("button", { name: "数据导入导出" }));
+    expect(screen.getByRole("dialog")).toBeTruthy();
   });
 
   it("handles SyncDialog Route A (scan, sync job poll, copy & reveal confirm) and Route B (inspect, clear token, vault)", async () => {
@@ -174,7 +205,7 @@ describe("Web UI mock mode & interactions", () => {
     expect(await screen.findByText(/导入已完成/)).toBeTruthy();
   });
 
-  it("escapes untrusted XSS payloads in nickname, pool title, itemName, and notes", async () => {
+  it("escapes untrusted XSS payloads in nickname, pool title, itemName, and notes (without global field)", async () => {
     history.replaceState(null, "", "/");
     setKey("xss-test-key");
     const xssPayload = '<script>window.__begXss=1</script><img src=x onerror="window.__begXss=2">';

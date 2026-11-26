@@ -2,7 +2,7 @@ import type { GachaRecord, PoolInfo, RerunCount } from "../types.js";
 import { analyzeCharFeed } from "./char.js";
 import { isDraw, tabOf } from "./common.js";
 import { CHAR_BEGINNER, CHAR_STANDARD } from "./config.js";
-import { overviewFor } from "./summary.js";
+import { globalSummaryFor, overviewFor } from "./summary.js";
 import type { AccountAnalysis, PoolGroup, Tab } from "./types.js";
 import { makeUpResolver } from "./up.js";
 import { analyzeWeaponPool } from "./weapon.js";
@@ -10,7 +10,7 @@ import { analyzeWeaponPool } from "./weapon.js";
 export * from "./config.js";
 export * from "./types.js";
 export { luck, tabOf, tone } from "./common.js";
-export { badges, overviewFor } from "./summary.js";
+export { badges, computeRating, globalSummaryFor, overviewFor } from "./summary.js";
 export { makeUpResolver, type UpResolver } from "./up.js";
 
 export interface AnalyzeInput {
@@ -64,6 +64,7 @@ export function analyzeAccount(i: AnalyzeInput): AccountAnalysis {
     accountKey: i.accountKey,
     generatedAt: i.now ?? Date.now(),
     overview,
+    global: globalSummaryFor(i.records, groups, overview),
     groups,
     notes,
   };

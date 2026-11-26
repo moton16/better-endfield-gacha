@@ -535,6 +535,114 @@ describe("analysis engine (W1)", () => {
     expect(up.up6("_comment")).toEqual({ ids: [], known: false });
     expect(up.up6("special_1_0_1")).toEqual({ ids: [], known: false });
   });
+
+  it("12. 同周期 5★ 陪跑明细 subHits5 与 pendingSubHits5（含 gift 过滤与跨池继承）", () => {
+    const records = [
+      // 池 A：5★ 甲×2 + 1 条非 draw 5★ 赠品（应忽略），无 6★
+      mk({ n: 1, rarity: 5, poolId: "sp_a", id: "c5_a", name: "五星甲", ts: 1000 }),
+      mk({ n: 2, rarity: 5, poolId: "sp_a", id: "c5_a", name: "五星甲", ts: 1001 }),
+      mk({ n: 3, rarity: 5, poolId: "sp_a", id: "c5_gift", name: "赠品五", kind: "gift_box", ts: 1002 }),
+      // 池 B：延续池 A 周期，再出 5★ 乙×1，然后出 6★（应带出 甲×2 + 乙×1 并清零），之后再垫 5★ 丙×1
+      mk({ n: 4, rarity: 5, poolId: "sp_b", id: "c5_b", name: "五星乙", ts: 2000 }),
+      mk({ n: 5, rarity: 6, poolId: "sp_b", id: "U_B", name: "六星B", ts: 2001 }),
+      mk({ n: 6, rarity: 5, poolId: "sp_b", id: "c5_c", name: "五星丙", ts: 2002 }),
+      // 武器池：6★ 前出 5★ 甲×1，6★ 后出 5★ 乙×2
+      mk({ n: 7, type: "weapon", poolId: "w_1", poolType: "special", rarity: 5, id: "w5_a", name: "武五甲", ts: 3000 }),
+      mk({ n: 8, type: "weapon", poolId: "w_1", poolType: "special", rarity: 6, id: "W_U", name: "武六U", ts: 3000 }),
+      mk({ n: 9, type: "weapon", poolId: "w_1", poolType: "special", rarity: 5, id: "w5_b", name: "武五乙", ts: 3100 }),
+      mk({ n: 10, type: "weapon", poolId: "w_1", poolType: "special", rarity: 5, id: "w5_b", name: "武五乙", ts: 3100 }),
+    ];
+    const res = analyzeAccount({
+      accountKey: ACC_KEY,
+      records,
+      pools: [pool("sp_b", ["U_B"]), pool("w_1", ["W_U"], "w_1", "special")],
+      rerunChar: [],
+      rerunWeapon: [],
+      now: 1,
+    });
+
+    const groupA = res.groups.find((g) => g.poolId === "sp_a")!;
+    const groupB = res.groups.find((g) => g.poolId === "sp_b")!;
+    const groupW = res.groups.find((g) => g.poolId === "w_1")!;
+
+    expect(groupA.pendingSubHits5).toEqual([{ itemId: "c5_a", itemName: "五星甲", count: 2 }]);
+    expect(groupB.hits[0]!.subHits5).toEqual([
+      { itemId: "c5_a", itemName: "五星甲", count: 2 },
+      { itemId: "c5_b", itemName: "五星乙", count: 1 },
+    ]);
+    expect(groupB.pendingSubHits5).toEqual([{ itemId: "c5_c", itemName: "五星丙", count: 1 }]);
+    expect(groupW.hits[0]!.subHits5).toEqual([{ itemId: "w5_a", itemName: "武五甲", count: 1 }]);
+    expect(groupW.pendingSubHits5).toEqual([{ itemId: "w5_b", itemName: "武五乙", count: 2 }]);
+  });
+
+  it("13. 武器十连聚合 weaponTenRolls 与全账号全局摘要 global（含 mock/fixture 校验）", () => {
+    const records: GachaRecord[] = [
+      // 第 1 个十连（ts=10000）：1× 5★ + 9× 4★
+      mk({ n: 1, type: "weapon", poolId: "wpn_t", poolType: "special", rarity: 5, id: "w5_1", name: "武五一", ts: 10000 }),
+      ...mkMany(2, 9, 4, { type: "weapon", poolId: "wpn_t", poolType: "special", ts: 10000 }),
+      // 第 2 个十连（ts=20000）：1× 6★ UP + 2× 5★ 同名聚合 + 7× 4★ + 1× 赠品
+      mk({ n: 11, type: "weapon", poolId: "wpn_t", poolType: "special", rarity: 6, id: "W_UP", name: "专武", ts: 20000 }),
+      mk({ n: 12, type: "weapon", poolId: "wpn_t", poolType: "special", rarity: 5, id: "w5_2", name: "武五二", ts: 20000 }),
+      mk({ n: 13, type: "weapon", poolId: "wpn_t", poolType: "special", rarity: 5, id: "w5_2", name: "武五二", ts: 20000 }),
+      ...mkMany(14, 7, 4, { type: "weapon", poolId: "wpn_t", poolType: "special", ts: 20000 }),
+      mk({ n: 21, type: "weapon", poolId: "wpn_t", poolType: "special", rarity: 6, id: "W_GIFT", name: "自选武器箱", kind: "gift_weapon_box", ts: 20000 }),
+      // 角色限定池：8×4★ + 1×5★ + 1×6★ → 1× 超欧 6★（pity=10）
+      ...mkMany(22, 8, 4, { poolId: "sp_g", ts: 30000 }),
+      mk({ n: 30, rarity: 5, poolId: "sp_g", id: "c5_g", name: "五角", ts: 30000 }),
+      mk({ n: 31, rarity: 6, poolId: "sp_g", id: "C_UP", name: "六角", ts: 31000 }),
+    ];
+
+    const res = analyzeAccount({
+      accountKey: ACC_KEY,
+      records,
+      pools: [pool("wpn_t", ["W_UP"], "武器测试池", "special"), pool("sp_g", ["C_UP"], "限定测试池")],
+      rerunChar: [],
+      rerunWeapon: [],
+      now: 1,
+    });
+
+    const wpn = res.groups.find((g) => g.poolId === "wpn_t")!;
+    expect(wpn.weaponTenRolls).toHaveLength(2);
+    // 新 → 旧排序：第 2 个十连在前
+    expect(wpn.weaponTenRolls![0]).toMatchObject({
+      rollIndex: 2,
+      gachaTs: "20000",
+      drawCount: 10,
+      items: [
+        { itemId: "W_UP", rarity: 6, count: 1, isUp: true, isGift: false },
+        { itemId: "w5_2", rarity: 5, count: 2, isUp: null, isGift: false },
+        { itemId: "W_GIFT", rarity: 6, count: 1, isUp: null, isGift: true },
+      ],
+    });
+    expect(wpn.weaponTenRolls![1]).toMatchObject({
+      rollIndex: 1,
+      drawCount: 10,
+      items: [{ itemId: "w5_1", rarity: 5, count: 1, isGift: false }],
+    });
+
+    expect(res.global).toMatchObject({
+      totalDraws: 30,
+      totalFree: 0,
+      totalNonDraw: 1,
+      total6: 2,
+      firstRecordTs: "10000",
+      globalBadges: [{ id: "nine_blue_one_purple", label: "九蓝一紫", count: 1 }],
+      globalLuckCounts: { ou: 1, fei: 0 },
+      isLucky: true,
+    });
+
+    // 校验内置 mock 与 server analysis 夹具 100% 符合 tone/luck 公式
+    for (const file of ["src/web/mock/analysis.sample.json", "tests/fixtures/server/analysis.json"]) {
+      const sample = JSON.parse(fs.readFileSync(path.resolve(file), "utf8")) as ReturnType<typeof analyzeAccount>;
+      expect(sample.global).toBeDefined();
+      for (const g of sample.groups) {
+        for (const h of g.hits) {
+          expect(h.tone).toBe(tone(h.pity, g.smallPityMax));
+          expect(h.luck).toBe(h.isFree ? null : luck(h.pity, g.smallPityMax));
+        }
+      }
+    }
+  });
 });
 
 describe("GachaStore.getAllPools & CLI stats --analysis", () => {

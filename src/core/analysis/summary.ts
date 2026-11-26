@@ -1,7 +1,15 @@
 import type { GachaRecord } from "../types.js";
-import type { BadgeCount, PoolGroup, Tab, TabOverview } from "./types.js";
+import { isDraw } from "./common.js";
+import type {
+  AccountGlobalSummary,
+  BadgeCount,
+  PoolGroup,
+  Tab,
+  TabOverview,
+} from "./types.js";
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
+const TABS: readonly Tab[] = ["limited", "weapon", "standard", "beginner"];
 
 export function overviewFor(tab: Tab, groups: PoolGroup[], tabRecords: GachaRecord[]): TabOverview {
   const gs = groups.filter((g) => g.tab === tab);
@@ -63,4 +71,83 @@ export function badges(records: GachaRecord[]): BadgeCount[] {
       { id: "nine_blue_one_purple", label: "九蓝一紫", count: nineBlue },
     ] satisfies BadgeCount[]
   ).filter((b) => b.count > 0);
+}
+
+function findFirstRecordTs(records: GachaRecord[]): string | null {
+  let minMs = Infinity;
+  let minRaw: string | null = null;
+  for (const r of records) {
+    const n = Number(r.gachaTs);
+    if (!Number.isFinite(n) || n <= 0) continue;
+    const ms = n < 1e11 ? n * 1000 : n;
+    if (ms < minMs) {
+      minMs = ms;
+      minRaw = r.gachaTs;
+    }
+  }
+  return minRaw;
+}
+
+/** 按小保底归一化水位比例计算本地趣味欧气称号（纯本地确定性计算） */
+export function computeRating(
+  groups: PoolGroup[],
+  totalDraws: number,
+  total6: number,
+): { ratingLabel: string; isLucky: boolean } {
+  let ratioSum = 0;
+  let paidCount = 0;
+  for (const g of groups) {
+    const denom = g.smallPityMax || 80;
+    for (const h of g.hits) {
+      if (h.isFree) continue;
+      ratioSum += h.pity / denom;
+      paidCount += 1;
+    }
+  }
+  if (paidCount === 0) {
+    if (totalDraws === 0) return { ratingLabel: "暂未寻访", isLucky: false };
+    if (total6 > 0) return { ratingLabel: "白嫖出金", isLucky: true };
+    return { ratingLabel: "蓄势待发", isLucky: false };
+  }
+  const avgRatio = ratioSum / paidCount;
+  if (avgRatio <= 0.4) return { ratingLabel: "宇宙无敌大欧皇", isLucky: true };
+  if (avgRatio <= 0.55) return { ratingLabel: "天选大欧皇", isLucky: true };
+  if (avgRatio <= 0.68) return { ratingLabel: "小有欧气", isLucky: true };
+  if (avgRatio <= 0.78) return { ratingLabel: "中规中矩", isLucky: false };
+  if (avgRatio <= 0.88) return { ratingLabel: "略显非酋", isLucky: false };
+  return { ratingLabel: "终末地大非酋", isLucky: false };
+}
+
+export function globalSummaryFor(
+  records: GachaRecord[],
+  groups: PoolGroup[],
+  overview: Record<Tab, TabOverview>,
+): AccountGlobalSummary {
+  const drawRecords = records.filter(isDraw);
+  const totalDraws = drawRecords.length;
+  const totalFree = drawRecords.filter((r) => r.isFree).length;
+  const totalNonDraw = records.length - totalDraws;
+  const total6 = TABS.reduce((s, t) => s + overview[t].count6, 0);
+  const globalLuckCounts = {
+    ou: TABS.reduce((s, t) => s + overview[t].luckCounts.ou, 0),
+    fei: TABS.reduce((s, t) => s + overview[t].luckCounts.fei, 0),
+  };
+  const paidHits = groups.flatMap((g) => g.hits.filter((h) => !h.isFree));
+  const avgPity6 = paidHits.length
+    ? round1(paidHits.reduce((s, h) => s + h.pity, 0) / paidHits.length)
+    : null;
+  const { ratingLabel, isLucky } = computeRating(groups, totalDraws, total6);
+
+  return {
+    totalDraws,
+    totalFree,
+    totalNonDraw,
+    total6,
+    firstRecordTs: findFirstRecordTs(records),
+    globalBadges: badges(drawRecords),
+    globalLuckCounts,
+    avgPity6,
+    ratingLabel,
+    isLucky,
+  };
 }

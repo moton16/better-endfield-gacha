@@ -9,8 +9,8 @@
 
 - **定位**：《明日方舟：终末地》抽卡凭据提取 + 记录拉取/本地持久化/保底分析/本地 Web UI/便携分发工具。双模：
   - **路线 A（Windows PC 客户端）**：只读解析本机 Chromium 磁盘缓存取 `u8_token`，零绑定、游戏运行期可热读。
-  - **路线 B（鹰角通行证）**：`hytoken → grant → binding_list → u8_token_by_uid`，跨平台、不开游戏即可同步全部可用绑定（扫码登录三接口待 W6 真机实测）。
-- **非目标**：不做内存注入（AntiCheatExpert 风险）、不做抓包/中间人、不绑定 B 站账号直登（无公开可行路径）、不内置第三方 Wiki 图片（版权风险）。
+  - **路线 B（鹰角通行证）**：`hytoken → grant → binding_list → u8_token_by_uid`，跨平台、不开游戏即可同步全部可用绑定（扫码登录三接口已于 2026-11-26 真机实证，见 §5）。
+- **非目标**：不做内存注入（AntiCheatExpert 风险）、不做抓包/中间人、不绑定 B 站账号直登（无公开可行路径）；测试阶段暂未装入图标包（预留本地静态资源槽位），待上线收口时统一内置。
 - **设计红线**（改动前必读）：
   1. **凭据永不外泄**：token/UID/roleId/昵称/抽卡记录不进仓库、日志、测试夹具、终端输出。统一用 `redact()` 的 `<LEN, SHA256_PREFIX>`；CLI 与 Server 默认脱敏（CLI 仅 `--show-ids` / `link --show`、API `/api/link` 仅 `reveal: true` 才输出明文）。
   2. **缓存只读 + 全共享**：缓存文件只读打开；Windows 上游戏运行时 `PlatformProcess.exe` 持有 DELETE 句柄，必须带 `FILE_SHARE_READ|WRITE|DELETE` 打开。Node 的 `fs.openSync`（libuv）固定如此，`tests/win-lock.test.ts` 实证。**禁止**换成会丢失该语义的实现。
@@ -84,14 +84,14 @@ Web UI (src/web) ──[X-BEG-Key]──► Server (src/server, 127.0.0.1) ─�
 | `api/normalize.ts` | 响应归一化 | `normalizeCharRecord/WeaponRecord/PoolContent` | `kind` 缺失视为 `draw`；`seqId` 一律字符串 + `compareSeqId` |
 | `sync/sync.ts` | 全池拉取 | `syncAccount` | 角色池 = meta ∪ 5 枚举（meta 缺失池失败记 skipped）；武器重构池单池失败回退 `pool_ids` 合并 |
 | `storage/store.ts` | SQLite 存储 | `GachaStore` | 主键 `(account_key, feed, seq_id)`；永不删记录；区块标记 `// ==== Wx BEGIN/END` |
-| `analysis/*`、`data/up-map.json` | 抽卡分析与静态 UP 回退 | `analyzeAccount`, `makeUpResolver`, `RULES`, `DISPLAY` | ⚠️ 保底/共享规则参考 `bhaoo/endfield-gacha`（MIT），非官方；暂缺 `poolVersion`；`config/types/common` 保持零 Node 依赖；`up.ts` 依赖 `resolveJsonModule` |
-| `auth/role.ts` | u8 token 反查角色 | `queryRoleList` | ⚠️ 返回的 `uid` 与路线 B `bindingList[].uid` 是否同值**未实测** |
-| `auth/passport.ts` | 通行证接口与扫码登录 | `grantOAuth`, `listBindings`, `u8TokenByUid`, `parseHyTokenInput` | 业务状态字段严格为 `status === 0`（非 `code`）；扫码三接口来自社区描述**未实测**；错误消息 `scrubUrl` |
+| `analysis/*`、`data/up-map.json` | 抽卡分析与静态 UP 回退 | `analyzeAccount`, `makeUpResolver`, `RULES`, `DISPLAY` | ⚠️ 保底/共享规则参考 `bhaoo/endfield-gacha`（MIT），非官方；暂缺 `poolVersion`；`config/types/common` 保持零 Node 依赖；输出含同周期 5★ `subHits5`/`pendingSubHits5`、武器十连聚合 `weaponTenRolls` 与全账号汇总 `global`；`up.ts` 依赖 `resolveJsonModule` |
+| `auth/role.ts` | u8 token 反查角色 | `queryRoleList` | 返回的 `uid` 与路线 B `bindingList[].uid` 同值（2026-11-26 实证）；国服（含 B 服）`serverId` 恒传 `"1"`；`status: 101`＝该渠道无角色，需与真正的接口异常区分 |
+| `auth/passport.ts` | 通行证接口与扫码登录 | `grantOAuth`, `listBindings`, `u8TokenByUid`, `parseHyTokenInput` | 业务状态字段严格为 `status === 0`（非 `code`）；扫码三接口已实证（`scanUrl` 为 `hypergryph://` 自定义 scheme，`scanCode` 为 120 字符 base64，无需 `dId`）；`call()` 在 `!res.ok` 时直接抛 `HTTP <code>` 会丢掉服务端 `msg`；错误消息 `scrubUrl` |
 | `auth/dpapi.ts`、`auth/vault.ts` | 通行证加密保险库 | `dpapi`, `Vault` | Windows 下优先 `pwsh`、`ENOENT` 回退 `powershell`（5.1，脚本显式 `Add-Type -AssemblyName System.Security`），stdin base64 传参；`list()` 不返回 `cipher`；损坏或版本不匹配视为空 |
-| `route-b.ts` | 路线 B 编排 | `inspectPassport`, `syncFromPassport` | 换票必须传外层 `binding.uid`（非 `roleId`）；每次换票按需重 grant；单绑定失败不中断其它绑定 |
+| `route-b.ts` | 路线 B 编排 | `inspectPassport`, `syncFromPassport` | 换票必须传外层 `binding.uid`（非 `roleId`）；每次换票按需重 grant；单绑定失败不中断其它绑定；⚠️ `roles.length === 0` 的空绑定（如只玩 B 服的通行证挂了官服）反查必返 `101` 且回退取不到角色，应按 warning 跳过而非记为失败 |
 | `io/*` | 导入 / 导出 / 离愁轩 / CSV / 备份 | `validateRecord`, `parseV1`, `parseLcx`, `planImport`, `applyImport`, `toCsv` | 官方优先不覆盖；`kind==="draw"` 强约束 `rarity 1..6` 与非空 `itemId`，非 draw 允许 `rarity=0` 与空 `itemId`；`lcx` 保守映射与 `lcx:unknown4` 占位；`backupTo` 使用 `VACUUM INTO` 同秒自动加后缀 |
 | `server/*`、`web-dir.ts`、`core/mask.ts`、`cli/commands/serve.ts` | 本地 HTTP API + 静态托管 + 任务管理 + 窗口启动 | `createApp`, `resolveWebDir`, `JobManager`, `serveStatic`, `openWindow`, `serve` | 仅监听 `127.0.0.1`；`/api/*` 校验 `X-BEG-Key`/`Host`/同源 `Origin`/`Content-Type`，无 CORS；body 上限 64 KB（`/api/import` 60 MB）；`resolveWebDir()` 兼容 `BEG_WEB_DIR`/源码 `src/`/`dist/`/便携包 `app/dist/`+`app/dist-web/`/`web/`；`JobManager` 单活 `sync` 并对错误脱敏 |
-| `web/*`、`vite.config.ts`、`tsconfig.web.json` | Preact + Vite 前端与 `?mock=1` | `App`, `bootstrapKey`, `api`, `SyncDialog`, `DataDialog` | 仅引用零 Node 依赖的 `core/analysis/{types,common,config}`；`#k=` 提取后立即 `history.replaceState` 抹除；下载走 `fetch`+Blob；零外部 CDN/字体/图片 URL；Vite dev `/api` 代理改写 `origin` |
+| `web/*`、`vite.config.ts`、`tsconfig.web.json` | Preact + Vite 前端与 `?mock=1` | `App`, `bootstrapKey`, `api`, `SyncDialog`, `DataDialog` | 参考成熟抽卡卡片视觉模板设计语言，纯 CSS + Inline SVG 自主实现；支持全局评分/徽章汇总、`展示五星` 开关、武器十连条与 `barWidth` 70 抽视觉缩放；`iconFor`/`bannerFor` 预留本地静态槽位；仅引用零 Node 依赖的 `core/analysis/{types,common,config}`；`#k=` 提取后立即 `history.replaceState` 抹除；下载走 `fetch`+Blob；零外部 CDN/字体/图片 URL；Vite dev `/api` 代理改写 `origin` |
 | `version.ts`、`cli/commands/version.ts`、`scripts/pack.ps1` | 版本真源、版本命令与便携打包 | `VERSION`, `version`, `pack.ps1` | `src/version.ts` 与 `package.json` 一致；`tests/version-guard.test.ts` 在 `BEG_RELEASE=1` 时拦截 `-dev`；`pack.ps1` 下载缓存/staging/冒烟全部落 `release/` 同盘目录 |
 
 ## 5. 数据布局与安全边界
@@ -108,7 +108,11 @@ Web UI (src/web) ──[X-BEG-Key]──► Server (src/server, 127.0.0.1) ─�
 - **便携 zip 布局**：`beg.cmd` + `node/node.exe` + `app/{package.json, dist/, dist-web/}` + `LICENSE` / `NOTICE.md` / `THIRD_PARTY.md` / `QUICKSTART.md`，运行期生成 `data/`（升级时保留 `data/` 替换其余文件即可）。
 - **已实证 vs 未实证（W6 待办）**：
   - ✅ 已实证：2026-11-25 本机 B 服 QtWebEngine 缓存 42/42 条目哈希通过（`u8_token` 328 字符，23h+ 可用，`channel=2&subChannel=2`）、实机全池拉取 613 条（610 抽 + 3 条 gift）、Windows `SharedReadFile` 锁实证、Windows 真实 DPAPI（`pwsh` 与 `powershell` 5.1）往返、便携 zip 解压 `beg.cmd` 真实服务冒烟。
-  - ❓ 未实测（留待 W6）：① `query_role_list.uid` 与路线 B `bindingList[].uid` 是否同值；② 扫码登录三接口真实响应；③ 真实 CEF（`QCefView`）缓存目录；④ 单绑定多角色 `u8_token_by_uid` 归属；⑤ 武器重构池单池 `pool_id=` 与历史 `/api/content` 过期表现；⑥ 真实离愁轩导出文件样本。
+  - ✅ 已实证（2026-11-26，W6 V2，样本 1 个通行证 / B 服 1 绑定 1 角色 + 官服空绑定）：`query_role_list.uid` 与 `bindingList[].uid` **完全同值**（长度 9、指纹一致，`uidExactMatch=true`）；由此组出的 `accountKey` 与 `beg_smoke` 中路线 A 落库行（`source=cache`）**逐字节相等**（`matchesExistingSmokeAccountKey=true`）→ 路线 A/B 天然共用同一账号，无需合并或迁移逻辑。B 服角色反查同样要传 `serverId="1"`（响应 `roles[].serverId` 亦为 `"1"`）。⚠️ `binding.roles[].isDefault` 在单角色账号上是 `false`（不是“唯一角色自动为默认”），**不得用它判定官网默认角色**，一律以 `query_role_list` 返回为准。
+  - ✅ 已实证（2026-11-26，W6 V3）：扫码三接口全链路可用，`passport.ts` 现有实现与真实协议一致。`gen_scan/login` → HTTP 200 / `status: 0` / `data:{scanId(32 字符), scanUrl, enableScanAppList[]}`；**不需要 `dId` / `Origin` / `Referer` 等设备指纹头**（加与不加响应一致）。`scan_status` 仅接受 GET：未扫码 HTTP 200 / `status: 100` / `msg: "未扫码"` 且无 `data`；确认后 `status: 0` + `data.scanCode`（**120 字符 base64**，与 `scanId` 不是同一值，正好对应 `token_by_scan_code` 服务端 `base64` 校验）。`token_by_scan_code` 用 `{scanCode}` POST 换出**24 字符 token**，可直接喂 `grantOAuth`，随后 `binding_list` 正常返回（本次 2 个绑定）。`scanUrl` 形态是**自定义 scheme** `hypergryph://scan_login?scanId=<32>`（63 字符，非 http URL），只能由森空岛 App 扫码消费 → W3 的 `/api/passport/qr` 必须由**前端本地渲染二维码**，不得依赖外部二维码服务或外链 CDN。
+  - ❓ 未实测（留待 W6）：① ~~`query_role_list.uid` 与 `bindingList[].uid` 是否同值~~（已实证，见上）；② ~~扫码登录三接口真实响应~~（已实证，见上）；③ 真实 CEF（`QCefView`）缓存目录；④ **单绑定多角色**时 `u8_token_by_uid` 落到哪个角色（当前样本每个绑定仅 1 角色，未覆盖）；⑤ 武器重构池单池 `pool_id=` 与历史 `/api/content` 过期表现；⑥ 真实离愁轩导出文件样本。
+  - ⚠️ 待修（V2 副产物，未提交改动）：官服绑定 `roles.length === 0` 时 `query_role_list` 返回 `status: 101 / "区服角色不存在"`，`syncFromPassport` 的回退链 `b.roles.find(...) ?? b.roles[0]` 取不到角色会 `throw`，导致“只玩 B 服但通行证挂了官服空绑定”的玩家每次同步都出现一条失败项（`beg sync --passport` 退出码 4，但 B 服记录已入库，非阻断）。建议对 0 角色绑定按 warning 跳过，并单独识别 `status === 101`。
+  - ⚠️ 待修（V3 副产物，非阻断）：`beg login --qr` / `beg sync --passport --qr` 目前把 `hypergryph://scan_login?scanId=<32>` **原样打印**，终端没有二维码，用户无法直接用森空岛扫；而该 URL 又不能交给外部二维码服务（会把一次性会话外传）。需在 CLI 侧引入本地二维码渲染（零依赖库），与 W3 前端同一套结论。
 
 ## 6. 开发约定与测试运行
 

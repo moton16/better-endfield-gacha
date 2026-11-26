@@ -1,5 +1,5 @@
 import type { GachaRecord, RerunCount } from "../types.js";
-import { isDraw, luck, tabOf, tone } from "./common.js";
+import { isDraw, luck, SubHitTracker, tabOf, tone } from "./common.js";
 import {
   CHAR_BEGINNER,
   CHAR_JOINT,
@@ -44,6 +44,7 @@ export function analyzeCharFeed(
   const groups = new Map<string, PoolGroup>();
   const order: string[] = [];
   let small = 0;
+  const subTracker = new SubHitTracker();
 
   for (const r of records.filter(isDraw)) {
     const gkey = spec.groupBy === "poolName" ? r.poolName || r.poolId : r.poolId;
@@ -67,6 +68,7 @@ export function analyzeCharFeed(
         upKnown: u.known,
         hits: [],
         pending: 0,
+        pendingSubHits5: [],
         smallPityMax: max,
         freeBatches: [],
         isCurrent: false,
@@ -75,7 +77,10 @@ export function analyzeCharFeed(
       };
       groups.set(gkey, g);
       order.push(gkey);
-      if (spec.scope === "perPool") small = 0;
+      if (spec.scope === "perPool") {
+        small = 0;
+        subTracker.clear();
+      }
     }
 
     // rerun 跨版本时取最新版本的 poolId 与 UP 信息
@@ -112,14 +117,20 @@ export function analyzeCharFeed(
         seqId: r.seqId,
         tone: tone(small, max),
         luck: r.isFree ? null : luck(small, max),
+        subHits5: subTracker.snapshot(),
       });
-      if (!r.isFree) small = 0;
+      if (!r.isFree) {
+        small = 0;
+        subTracker.clear();
+      }
     } else if (r.rarity === 5) {
       g.count5++;
+      subTracker.add(r);
     } else if (r.rarity === 4) {
       g.count4++;
     }
     g.pending = small;
+    g.pendingSubHits5 = subTracker.snapshot();
   }
 
   const out = order.map((k) => groups.get(k)!);

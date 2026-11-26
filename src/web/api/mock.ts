@@ -70,6 +70,18 @@ const analysisAccountB: AccountAnalysis = {
       luckCounts: { ou: 0, fei: 0 },
     },
   },
+  global: {
+    totalDraws: 85,
+    totalFree: 0,
+    totalNonDraw: 0,
+    total6: 1,
+    firstRecordTs: "1760000010000",
+    globalBadges: [],
+    globalLuckCounts: { ou: 0, fei: 0 },
+    avgPity6: 50,
+    ratingLabel: "小有欧气",
+    isLucky: true,
+  },
   groups: [
     {
       key: "char:E_CharacterGachaPoolType_Special:special_synth_b",
@@ -98,9 +110,17 @@ const analysisAccountB: AccountAnalysis = {
           seqId: "9050",
           tone: "yellow",
           luck: null,
+          subHits5: [
+            { itemId: "chr_5_b_1", itemName: "干员五甲", count: 3 },
+            { itemId: "chr_5_b_2", itemName: "干员五乙", count: 2 },
+          ],
         },
       ],
       pending: 35,
+      pendingSubHits5: [
+        { itemId: "chr_5_b_1", itemName: "干员五甲", count: 2 },
+        { itemId: "chr_5_b_3", itemName: "干员五丙", count: 2 },
+      ],
       smallPityMax: 80,
       bigPity: {
         max: 120,

@@ -4,11 +4,11 @@
   "overview": {
     "limited": {
       "total": 135,
-      "count6": 4,
+      "count6": 5,
       "offBanner": 1,
-      "upCount": 2,
-      "avgPity6": 31.25,
-      "avgCostPerUp": 57.5,
+      "upCount": 3,
+      "avgPity6": 28.3,
+      "avgCostPerUp": 38.3,
       "badges": [
         {
           "id": "double_gold",
@@ -27,16 +27,22 @@
       }
     },
     "weapon": {
-      "total": 52,
-      "count6": 2,
+      "total": 90,
+      "count6": 3,
       "offBanner": 1,
-      "upCount": 1,
-      "avgPity6": 26,
-      "avgCostPerUp": 52,
-      "badges": [],
+      "upCount": 2,
+      "avgPity6": 28.3,
+      "avgCostPerUp": 45,
+      "badges": [
+        {
+          "id": "nine_blue_one_purple",
+          "label": "九蓝一紫",
+          "count": 3
+        }
+      ],
       "luckCounts": {
         "ou": 0,
-        "fei": 0
+        "fei": 1
       }
     },
     "standard": {
@@ -72,6 +78,32 @@
       }
     }
   },
+  "global": {
+    "totalDraws": 310,
+    "totalFree": 10,
+    "totalNonDraw": 2,
+    "total6": 10,
+    "firstRecordTs": "1760000001000",
+    "globalBadges": [
+      {
+        "id": "double_gold",
+        "label": "十连双金",
+        "count": 1
+      },
+      {
+        "id": "nine_blue_one_purple",
+        "label": "九蓝一紫",
+        "count": 6
+      }
+    ],
+    "globalLuckCounts": {
+      "ou": 2,
+      "fei": 2
+    },
+    "avgPity6": 31.4,
+    "ratingLabel": "天选大欧皇",
+    "isLucky": true
+  },
   "groups": [
     {
       "key": "char:E_CharacterGachaPoolType_Special:special_synth_02",
@@ -83,9 +115,9 @@
       "total": 75,
       "paid": 70,
       "free": 5,
-      "count6": 2,
-      "count5": 8,
-      "count4": 65,
+      "count6": 3,
+      "count5": 6,
+      "count4": 66,
       "up6Ids": [
         "chr_synth_up02"
       ],
@@ -93,53 +125,97 @@
       "hits": [
         {
           "itemId": "chr_synth_up02",
-          "itemName": "合成UP干员二",
-          "pity": 5,
+          "itemName": "干员02",
+          "pity": 4,
+          "isFree": false,
+          "isNew": false,
+          "isUp": true,
+          "gachaTs": "1760000090000",
+          "seqId": "304",
+          "tone": "green",
+          "luck": "ou",
+          "subHits5": [
+            {
+              "itemId": "chr_5_a",
+              "itemName": "干员五甲",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "itemId": "chr_synth_up02",
+          "itemName": "干员02",
+          "pity": 2,
           "isFree": false,
           "isNew": true,
           "isUp": true,
-          "gachaTs": "1760000090000",
-          "seqId": "1075",
+          "gachaTs": "1760000080000",
+          "seqId": "300",
           "tone": "green",
-          "luck": "ou"
+          "luck": "ou",
+          "subHits5": []
         },
         {
           "itemId": "chr_synth_std01",
-          "itemName": "合成常驻干员甲",
-          "pity": 65,
+          "itemName": "干员03",
+          "pity": 74,
           "isFree": false,
           "isNew": false,
           "isUp": false,
           "gachaTs": "1760000080000",
-          "seqId": "1070",
+          "seqId": "298",
           "tone": "pink",
-          "luck": "fei"
+          "luck": "fei",
+          "subHits5": [
+            {
+              "itemId": "chr_5_d",
+              "itemName": "干员五丁",
+              "count": 1
+            },
+            {
+              "itemId": "chr_5_c",
+              "itemName": "干员五丙",
+              "count": 3
+            },
+            {
+              "itemId": "chr_5_e",
+              "itemName": "干员五戊",
+              "count": 1
+            }
+          ]
         }
       ],
-      "pending": 0,
+      "pending": 2,
+      "pendingSubHits5": [
+        {
+          "itemId": "chr_5_c",
+          "itemName": "干员五丙",
+          "count": 1
+        }
+      ],
       "smallPityMax": 80,
+      "freeBatches": [],
+      "isCurrent": true,
+      "firstTs": "1760000060000",
+      "lastTs": "1760000092000",
       "bigPity": {
         "max": 120,
         "count": 70,
         "remaining": 0,
         "gotUp": true,
         "fromOfficialCount": false
-      },
-      "freeBatches": [],
-      "isCurrent": true,
-      "firstTs": "1760000060000",
-      "lastTs": "1760000090000"
+      }
     },
     {
-      "key": "char:E_CharacterGachaPoolType_Rerun:rerun_synth_01",
+      "key": "char:E_CharacterGachaPoolType_Rerun:合成重构寻访一期",
       "kind": "char",
       "tab": "limited",
       "poolType": "E_CharacterGachaPoolType_Rerun",
       "poolId": "rerun_synth_01",
       "title": "合成重构寻访一期",
       "total": 15,
-      "paid": 15,
-      "free": 0,
+      "paid": 10,
+      "free": 5,
       "count6": 1,
       "count5": 2,
       "count4": 12,
@@ -148,30 +224,49 @@
       "hits": [
         {
           "itemId": "chr_synth_unknown6",
-          "itemName": "合成未知六星",
-          "pity": 12,
+          "itemName": "干员04",
+          "pity": 5,
           "isFree": true,
           "isNew": true,
           "isUp": null,
-          "gachaTs": "1760000055000",
-          "seqId": "2015",
+          "gachaTs": "1760000053000",
+          "seqId": "227",
           "tone": "green",
-          "luck": "ou"
+          "luck": null,
+          "subHits5": [
+            {
+              "itemId": "chr_5_b",
+              "itemName": "干员五乙",
+              "count": 1
+            }
+          ]
         }
       ],
-      "pending": 15,
+      "pending": 10,
+      "pendingSubHits5": [
+        {
+          "itemId": "chr_5_b",
+          "itemName": "干员五乙",
+          "count": 1
+        },
+        {
+          "itemId": "chr_5_a",
+          "itemName": "干员五甲",
+          "count": 1
+        }
+      ],
       "smallPityMax": 80,
+      "freeBatches": [],
+      "isCurrent": true,
+      "firstTs": "1760000050000",
+      "lastTs": "1760000055000",
       "bigPity": {
         "max": 120,
         "count": 42,
         "remaining": 78,
         "gotUp": false,
         "fromOfficialCount": true
-      },
-      "freeBatches": [],
-      "isCurrent": true,
-      "firstTs": "1760000050000",
-      "lastTs": "1760000055000"
+      }
     },
     {
       "key": "char:E_CharacterGachaPoolType_Special:special_synth_01",
@@ -193,44 +288,63 @@
       "hits": [
         {
           "itemId": "chr_synth_up01",
-          "itemName": "合成UP干员一",
-          "pity": 43,
+          "itemName": "干员01",
+          "pity": 33,
           "isFree": false,
           "isNew": true,
           "isUp": true,
           "gachaTs": "1760000040000",
-          "seqId": "1043",
+          "seqId": "209",
           "tone": "yellow",
-          "luck": null
+          "luck": null,
+          "subHits5": [
+            {
+              "itemId": "chr_5_a",
+              "itemName": "干员五甲",
+              "count": 2
+            },
+            {
+              "itemId": "chr_5_b",
+              "itemName": "干员五乙",
+              "count": 1
+            }
+          ]
         }
       ],
-      "pending": 2,
+      "pending": 12,
+      "pendingSubHits5": [
+        {
+          "itemId": "chr_5_d",
+          "itemName": "干员五丁",
+          "count": 1
+        }
+      ],
       "smallPityMax": 80,
+      "freeBatches": [],
+      "isCurrent": false,
+      "firstTs": "1760000020000",
+      "lastTs": "1760000042000",
       "bigPity": {
         "max": 120,
         "count": 45,
         "remaining": 0,
         "gotUp": true,
         "fromOfficialCount": false
-      },
-      "freeBatches": [],
-      "isCurrent": false,
-      "firstTs": "1760000020000",
-      "lastTs": "1760000040000"
+      }
     },
     {
-      "key": "weapon:weaponbox_synth_01",
+      "key": "weapon:weaponbox_synth_02",
       "kind": "weapon",
       "tab": "weapon",
       "poolType": "special",
-      "poolId": "weaponbox_synth_01",
-      "title": "合成武器申领箱一",
-      "total": 52,
-      "paid": 52,
+      "poolId": "weaponbox_synth_02",
+      "title": "合成武器申领箱二",
+      "total": 50,
+      "paid": 50,
       "free": 0,
       "count6": 2,
-      "count5": 6,
-      "count4": 44,
+      "count5": 7,
+      "count4": 41,
       "up6Ids": [
         "wpn_synth_up01"
       ],
@@ -238,42 +352,373 @@
       "hits": [
         {
           "itemId": "wpn_synth_up01",
-          "itemName": "合成UP武器一",
-          "pity": 22,
+          "itemName": "武器01",
+          "pity": 18,
           "isFree": false,
-          "isNew": true,
+          "isNew": false,
           "isUp": true,
           "gachaTs": "1760000035000",
-          "seqId": "3052",
+          "seqId": "173",
           "tone": "yellow",
-          "luck": null
+          "luck": null,
+          "subHits5": [
+            {
+              "itemId": "wpn_5_b",
+              "itemName": "五星枪乙",
+              "count": 1
+            },
+            {
+              "itemId": "wpn_5_a",
+              "itemName": "五星刃甲",
+              "count": 1
+            },
+            {
+              "itemId": "wpn_5_c",
+              "itemName": "五星杖丙",
+              "count": 1
+            }
+          ]
         },
         {
           "itemId": "wpn_synth_std01",
-          "itemName": "合成常驻武器甲",
+          "itemName": "武器02",
           "pity": 30,
           "isFree": false,
           "isNew": false,
           "isUp": false,
-          "gachaTs": "1760000030000",
-          "seqId": "3030",
+          "gachaTs": "1760000028000",
+          "seqId": "155",
           "tone": "yellow",
-          "luck": null
+          "luck": null,
+          "subHits5": [
+            {
+              "itemId": "wpn_5_b",
+              "itemName": "五星枪乙",
+              "count": 1
+            },
+            {
+              "itemId": "wpn_5_a",
+              "itemName": "五星刃甲",
+              "count": 2
+            },
+            {
+              "itemId": "wpn_5_c",
+              "itemName": "五星杖丙",
+              "count": 1
+            }
+          ]
         }
       ],
-      "pending": 0,
+      "pending": 2,
+      "pendingSubHits5": [],
       "smallPityMax": 40,
+      "freeBatches": [],
+      "weaponTenRolls": [
+        {
+          "rollIndex": 5,
+          "gachaTs": "1760000035000",
+          "drawCount": 10,
+          "items": [
+            {
+              "itemId": "wpn_synth_up01",
+              "itemName": "武器01",
+              "rarity": 6,
+              "count": 1,
+              "isUp": true,
+              "isNew": false,
+              "isFree": false,
+              "isGift": false
+            },
+            {
+              "itemId": "wpn_5_c",
+              "itemName": "五星杖丙",
+              "rarity": 5,
+              "count": 1,
+              "isUp": null,
+              "isNew": false,
+              "isFree": false,
+              "isGift": false
+            },
+            {
+              "itemId": "wpn_gift_box",
+              "itemName": "武器补给箱",
+              "rarity": 6,
+              "count": 1,
+              "isUp": null,
+              "isNew": false,
+              "isFree": false,
+              "isGift": true
+            }
+          ]
+        },
+        {
+          "rollIndex": 4,
+          "gachaTs": "1760000032000",
+          "drawCount": 10,
+          "items": [
+            {
+              "itemId": "wpn_5_b",
+              "itemName": "五星枪乙",
+              "rarity": 5,
+              "count": 1,
+              "isUp": null,
+              "isNew": false,
+              "isFree": false,
+              "isGift": false
+            },
+            {
+              "itemId": "wpn_5_a",
+              "itemName": "五星刃甲",
+              "rarity": 5,
+              "count": 1,
+              "isUp": null,
+              "isNew": false,
+              "isFree": false,
+              "isGift": false
+            }
+          ]
+        },
+        {
+          "rollIndex": 3,
+          "gachaTs": "1760000028000",
+          "drawCount": 10,
+          "items": [
+            {
+              "itemId": "wpn_synth_std01",
+              "itemName": "武器02",
+              "rarity": 6,
+              "count": 1,
+              "isUp": false,
+              "isNew": false,
+              "isFree": false,
+              "isGift": false
+            },
+            {
+              "itemId": "wpn_5_a",
+              "itemName": "五星刃甲",
+              "rarity": 5,
+              "count": 1,
+              "isUp": null,
+              "isNew": false,
+              "isFree": false,
+              "isGift": false
+            }
+          ]
+        },
+        {
+          "rollIndex": 2,
+          "gachaTs": "1760000025000",
+          "drawCount": 10,
+          "items": [
+            {
+              "itemId": "wpn_5_a",
+              "itemName": "五星刃甲",
+              "rarity": 5,
+              "count": 1,
+              "isUp": null,
+              "isNew": false,
+              "isFree": false,
+              "isGift": false
+            },
+            {
+              "itemId": "wpn_5_c",
+              "itemName": "五星杖丙",
+              "rarity": 5,
+              "count": 1,
+              "isUp": null,
+              "isNew": false,
+              "isFree": false,
+              "isGift": false
+            }
+          ]
+        },
+        {
+          "rollIndex": 1,
+          "gachaTs": "1760000022000",
+          "drawCount": 10,
+          "items": [
+            {
+              "itemId": "wpn_5_b",
+              "itemName": "五星枪乙",
+              "rarity": 5,
+              "count": 1,
+              "isUp": null,
+              "isNew": false,
+              "isFree": false,
+              "isGift": false
+            }
+          ]
+        }
+      ],
+      "isCurrent": false,
+      "firstTs": "1760000022000",
+      "lastTs": "1760000035000",
       "bigPity": {
         "max": 80,
-        "count": 52,
+        "count": 0,
         "remaining": 0,
         "gotUp": true,
         "fromOfficialCount": false
-      },
+      }
+    },
+    {
+      "key": "weapon:weaponbox_synth_01",
+      "kind": "weapon",
+      "tab": "weapon",
+      "poolType": "rerun",
+      "poolId": "weaponbox_synth_01",
+      "title": "合成武器申领箱一",
+      "total": 40,
+      "paid": 40,
+      "free": 0,
+      "count6": 1,
+      "count5": 5,
+      "count4": 34,
+      "up6Ids": [
+        "wpn_synth_up02"
+      ],
+      "upKnown": true,
+      "hits": [
+        {
+          "itemId": "wpn_synth_up02",
+          "itemName": "武器03",
+          "pity": 37,
+          "isFree": false,
+          "isNew": false,
+          "isUp": true,
+          "gachaTs": "1760000018000",
+          "seqId": "122",
+          "tone": "pink",
+          "luck": "fei",
+          "subHits5": [
+            {
+              "itemId": "wpn_5_a",
+              "itemName": "五星刃甲",
+              "count": 2
+            },
+            {
+              "itemId": "wpn_5_b",
+              "itemName": "五星枪乙",
+              "count": 1
+            },
+            {
+              "itemId": "wpn_5_c",
+              "itemName": "五星杖丙",
+              "count": 1
+            }
+          ]
+        }
+      ],
+      "pending": 3,
+      "pendingSubHits5": [
+        {
+          "itemId": "wpn_5_a",
+          "itemName": "五星刃甲",
+          "count": 1
+        }
+      ],
+      "smallPityMax": 40,
       "freeBatches": [],
-      "isCurrent": true,
+      "weaponTenRolls": [
+        {
+          "rollIndex": 4,
+          "gachaTs": "1760000018000",
+          "drawCount": 10,
+          "items": [
+            {
+              "itemId": "wpn_synth_up02",
+              "itemName": "武器03",
+              "rarity": 6,
+              "count": 1,
+              "isUp": true,
+              "isNew": false,
+              "isFree": false,
+              "isGift": false
+            },
+            {
+              "itemId": "wpn_5_a",
+              "itemName": "五星刃甲",
+              "rarity": 5,
+              "count": 1,
+              "isUp": null,
+              "isNew": false,
+              "isFree": false,
+              "isGift": false
+            }
+          ]
+        },
+        {
+          "rollIndex": 3,
+          "gachaTs": "1760000015000",
+          "drawCount": 10,
+          "items": [
+            {
+              "itemId": "wpn_5_c",
+              "itemName": "五星杖丙",
+              "rarity": 5,
+              "count": 1,
+              "isUp": null,
+              "isNew": false,
+              "isFree": false,
+              "isGift": false
+            }
+          ]
+        },
+        {
+          "rollIndex": 2,
+          "gachaTs": "1760000012000",
+          "drawCount": 10,
+          "items": [
+            {
+              "itemId": "wpn_5_a",
+              "itemName": "五星刃甲",
+              "rarity": 5,
+              "count": 1,
+              "isUp": null,
+              "isNew": false,
+              "isFree": false,
+              "isGift": false
+            },
+            {
+              "itemId": "wpn_5_b",
+              "itemName": "五星枪乙",
+              "rarity": 5,
+              "count": 1,
+              "isUp": null,
+              "isNew": false,
+              "isFree": false,
+              "isGift": false
+            }
+          ]
+        },
+        {
+          "rollIndex": 1,
+          "gachaTs": "1760000010000",
+          "drawCount": 10,
+          "items": [
+            {
+              "itemId": "wpn_5_a",
+              "itemName": "五星刃甲",
+              "rarity": 5,
+              "count": 1,
+              "isUp": null,
+              "isNew": false,
+              "isFree": false,
+              "isGift": false
+            }
+          ]
+        }
+      ],
+      "isCurrent": false,
       "firstTs": "1760000010000",
-      "lastTs": "1760000035000"
+      "lastTs": "1760000018000",
+      "bigPity": {
+        "max": 80,
+        "count": 0,
+        "remaining": 0,
+        "gotUp": true,
+        "fromOfficialCount": false
+      }
     },
     {
       "key": "char:E_CharacterGachaPoolType_Standard:standard_synth",
@@ -293,18 +738,36 @@
       "hits": [
         {
           "itemId": "chr_synth_std01",
-          "itemName": "合成常驻干员甲",
+          "itemName": "干员03",
           "pity": 45,
           "isFree": false,
           "isNew": true,
           "isUp": null,
           "gachaTs": "1760000015000",
-          "seqId": "4045",
+          "seqId": "85",
           "tone": "yellow",
-          "luck": null
+          "luck": null,
+          "subHits5": [
+            {
+              "itemId": "chr_5_c",
+              "itemName": "干员五丙",
+              "count": 1
+            },
+            {
+              "itemId": "chr_5_a",
+              "itemName": "干员五甲",
+              "count": 2
+            },
+            {
+              "itemId": "chr_5_d",
+              "itemName": "干员五丁",
+              "count": 2
+            }
+          ]
         }
       ],
       "pending": 0,
+      "pendingSubHits5": [],
       "smallPityMax": 80,
       "freeBatches": [],
       "isCurrent": true,
@@ -329,18 +792,31 @@
       "hits": [
         {
           "itemId": "chr_synth_std02",
-          "itemName": "合成常驻干员乙",
+          "itemName": "干员05",
           "pity": 40,
           "isFree": false,
           "isNew": true,
           "isUp": null,
           "gachaTs": "1760000002000",
-          "seqId": "5040",
+          "seqId": "40",
           "tone": "yellow",
-          "luck": null
+          "luck": null,
+          "subHits5": [
+            {
+              "itemId": "chr_5_a",
+              "itemName": "干员五甲",
+              "count": 2
+            },
+            {
+              "itemId": "chr_5_b",
+              "itemName": "干员五乙",
+              "count": 2
+            }
+          ]
         }
       ],
       "pending": 0,
+      "pendingSubHits5": [],
       "smallPityMax": 80,
       "freeBatches": [],
       "isCurrent": true,
