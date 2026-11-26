@@ -1,0 +1,36 @@
+{
+  "id": "00000000-0000-4000-8000-000000000001",
+  "kind": "sync",
+  "state": "done",
+  "progress": [
+    "使用缓存凭据 11aa22bb（qtwebengine）",
+    "拉取 特许寻访 …",
+    "拉取 武器池 …"
+  ],
+  "result": {
+    "items": [
+      {
+        "channelName": "bilibili服",
+        "maskedKey": "cn_2_#11aa22bb",
+        "ok": true,
+        "feeds": [
+          {
+            "label": "特许寻访",
+            "fetched": 10,
+            "added": 3,
+            "status": "ok"
+          },
+          {
+            "label": "合成武器申领箱一",
+            "fetched": 5,
+            "added": 1,
+            "status": "ok"
+          }
+        ],
+        "warnings": []
+      }
+    ]
+  },
+  "startedAt": 1760000000000,
+  "endedAt": 1760000003500
+}

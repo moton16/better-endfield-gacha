@@ -66,3 +66,21 @@
   - `makeBackupPath` 在同秒内多次触发 `applyImport` / `backup` 时自动探测并追加 `-1`/`-2` 后缀，规避 SQLite `VACUUM INTO` 目标文件不可已存在的报错。
   - 离愁轩导入采用保守映射策略（`--pool-map` → 本地账号记录唯一映射；同名多池入 `ambiguous`、未知池入 `unresolvedPools`，不猜不插；本地已有 `lcx:` 前缀记录不参与真实 `itemId` 唯一映射统计以免污染官方映射）。
 - **验证**：`.\node_modules\.bin\tsc.CMD -p tsconfig.json` 与 `.\node_modules\.bin\tsc.CMD -p tsconfig.build.json --noEmit` 0 error；`.\node_modules\.bin\vitest.CMD run` 9 个测试文件共 71 passed（含新增 11 条 W2 测试）；使用本机脱敏冒烟库经临时目录完成 `export → import 干跑 → --apply（610 抽 + 3 gift 全数入库）→ 二次导入 0 新增 → csv/backup` 往返校验且 `stats` 一致。未覆盖：真实离愁轩导出文件实机样本验证（合成夹具已覆盖已知坑点，真机样本留待 W6）。
+
+### [W3] — 本地 HTTP 服务（`beg serve`）
+> **涵盖提交**：分支 `feat/w3-server`（见 `git log`）。
+>
+> **代码改动概况**：
+> - `src/core/mask.ts`、`src/cli/util.ts`：抽离 `maskKey` 供 CLI 与 Server 共用（`cli/util.ts` 保留重导出兼容既有调用方）。
+> - `src/core/storage/store.ts`：在 `// ==== W3 BEGIN/END` 区块追加 `countRecordsFiltered` 与 `getRecordsPaged`。
+> - `src/server/{index,http,security,jobs,static,open-window}.ts`、`src/server/routes/{index,health,accounts,analysis,records,sync,jobs,cache,link,passport,importexport}.ts`：实现仅监听 `127.0.0.1` 的本地 HTTP 服务、安全守卫（`X-BEG-Key` 等长 `timingSafeEqual`、`Host`/`Origin` 校验、变更请求 `Content-Type: application/json`、无 CORS 允许头、64 KB/60 MB 体积限制、CSP/`nosniff`/`no-referrer`、路径与符号链接穿越防护、超时设置）、单活 `JobManager`（任务日志与错误自动脱敏，不回传 `stack`）、Edge/Chrome `--app` 模式窗口拉起，以及直接接入 W1 分析引擎与 W2 导入/导出/备份的全套 REST 接口。
+> - `src/cli/commands/{serve,index}.ts`：注册 `serve` 命令（支持 `--port`、`--no-open`、`--cache-dir`、`--data-dir`）。
+> - `tests/fixtures/server/*.json`、`tests/server.test.ts`：补齐 10 份纯合成契约夹具与 16 条安全/接口集成测试。
+> - `README.md`、`docs/DEVELOPER.md`：新增“图形界面（`pnpm cli serve`）”说明，补充 `server/*` 与 `core/mask.ts` 仓库地图/模块表及本地服务安全模型。
+>
+> - **根因与关键决策**：
+>   - `EfClient` 默认页间延时 `[250, 500]` ms，`AppDeps` 增加可选 `sleep` 与 `cacheDiscover` 注入，既保留真实运行行为，又让测试完全隔离 `%LOCALAPPDATA%` 与延时。
+>   - 请求体超限 `413` 时响应附加 `Connection: close`，确保客户端在服务端未消费完全部超限流时也能稳定收到 `413` 响应。
+>   - `serveStatic` 增加 `fs.realpathSync` 根目录边界校验并显式处理 `HEAD` 请求与空字节/反斜杠路径。
+>   - `close()` 调用 `server.closeAllConnections?.()` 防止 keep-alive 连接阻塞端口释放。
+> - **验证**：`.\node_modules\.bin\tsc.CMD -p tsconfig.json` 与 `.\node_modules\.bin\tsc.CMD -p tsconfig.build.json --noEmit` 0 error；`.\node_modules\.bin\vitest.CMD run` 10 个测试文件共 87 passed（新增 16 条）；另以临时数据目录启动 `beg serve --no-open` 实测 `netstat` 仅监听 `127.0.0.1:<port>`、`/api/health` 401/200、`/api/accounts` 与 `/api/accounts/:key/analysis` 返回正常。未覆盖：前端构建产物 `dist-web/`（由 W4 负责）与真实 Edge `--app` GUI 窗口弹窗（仅在无头/CLI 验证）。

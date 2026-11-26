@@ -1,0 +1,19 @@
+{
+  "bindings": [
+    {
+      "channelName": "bilibili服",
+      "channelMasterId": "2",
+      "roleCount": 1,
+      "isDefault": true,
+      "uidFingerprint": "11aa22bb"
+    },
+    {
+      "channelName": "官服",
+      "channelMasterId": "1",
+      "roleCount": 1,
+      "isDefault": false,
+      "uidFingerprint": "33cc44dd"
+    }
+  ],
+  "vaultId": "aabbccdd"
+}

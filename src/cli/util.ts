@@ -1,12 +1,6 @@
-import { fingerprint } from "../core/redact.js";
 import type { SyncReport } from "../core/sync/sync.js";
 
-/** 终端默认不显示 UID/角色 ID/昵称，--show-ids 才明文 */
-export function maskKey(key: string, show: boolean): string {
-  if (show) return key;
-  const [region, channel, ...rest] = key.split("_");
-  return `${region}_${channel}_#${fingerprint(rest.join("_"))}`;
-}
+export { maskKey } from "../core/mask.js";
 
 export function maskName(name: string, show: boolean): string {
   return show ? name || "?" : "***";

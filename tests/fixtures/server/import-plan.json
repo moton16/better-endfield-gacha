@@ -1,0 +1,15 @@
+{
+  "plans": [
+    {
+      "maskedKey": "cn_2_#11aa22bb",
+      "total": 50,
+      "added": 12,
+      "duplicates": 38,
+      "conflicts": 0,
+      "skipped": 0
+    }
+  ],
+  "warnings": [],
+  "unresolvedPools": [],
+  "applied": false
+}

@@ -293,4 +293,54 @@ export class GachaStore {
     return this.listAccounts().find((a) => a.accountKey === accountKey) ?? null;
   }
   // ==== W2 END
+
+  // ==== W3 BEGIN
+  countRecordsFiltered(accountKey: string, q: RecordQuery = {}): number {
+    const where = ["account_key = ?"];
+    const args: string[] = [accountKey];
+    if (q.type) { where.push("type = ?"); args.push(q.type); }
+    if (q.feed) { where.push("feed = ?"); args.push(q.feed); }
+    const row = this.db
+      .prepare(`SELECT COUNT(*) AS n FROM records WHERE ${where.join(" AND ")}`)
+      .get(...args) as { n: number } | undefined;
+    return row?.n ?? 0;
+  }
+
+  getRecordsPaged(
+    accountKey: string,
+    q: RecordQuery & { limit?: number; offset?: number; order?: "asc" | "desc" } = {},
+  ): GachaRecord[] {
+    const where = ["account_key = ?"];
+    const args: Array<string | number> = [accountKey];
+    if (q.type) { where.push("type = ?"); args.push(q.type); }
+    if (q.feed) { where.push("feed = ?"); args.push(q.feed); }
+    const dir = q.order === "desc" ? "DESC" : "ASC";
+    const limit = Math.max(0, Math.trunc(q.limit ?? 200));
+    const offset = Math.max(0, Math.trunc(q.offset ?? 0));
+    args.push(limit, offset);
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM records WHERE ${where.join(" AND ")}
+         ORDER BY CAST(gacha_ts AS INTEGER) ${dir}, length(seq_id) ${dir}, seq_id ${dir}
+         LIMIT ? OFFSET ?`,
+      )
+      .all(...args) as any[];
+    return rows.map((r) => ({
+      type: r.type,
+      feed: r.feed,
+      poolType: r.pool_type,
+      poolId: r.pool_id,
+      poolName: r.pool_name,
+      itemId: r.item_id,
+      itemName: r.item_name,
+      itemSubType: r.item_sub_type,
+      rarity: r.rarity,
+      isFree: r.is_free === 1,
+      isNew: r.is_new === 1,
+      gachaTs: r.gacha_ts,
+      seqId: r.seq_id,
+      kind: r.kind,
+    }));
+  }
+  // ==== W3 END
 }

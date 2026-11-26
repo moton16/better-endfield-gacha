@@ -1,0 +1,23 @@
+{
+  "locations": [
+    {
+      "dir": "X:\\synthetic\\PlatformProcess\\Cache",
+      "backend": "blockfile",
+      "origin": "qtwebengine"
+    }
+  ],
+  "credentials": [
+    {
+      "fingerprint": "11aa22bb",
+      "host": "ef-webview.hypergryph.com",
+      "channel": "2",
+      "subChannel": "2",
+      "serverId": "1",
+      "sortTime": 1760000080000,
+      "paths": [
+        "/page/gacha_char"
+      ]
+    }
+  ],
+  "errors": []
+}

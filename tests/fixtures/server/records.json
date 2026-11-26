@@ -1,0 +1,69 @@
+{
+  "total": 4,
+  "items": [
+    {
+      "type": "char",
+      "feed": "char:E_CharacterGachaPoolType_Special",
+      "poolType": "E_CharacterGachaPoolType_Special",
+      "poolId": "special_synth_02",
+      "poolName": "合成特许寻访二期",
+      "itemId": "chr_synth_4_01",
+      "itemName": "合成四星干员",
+      "itemSubType": "",
+      "rarity": 4,
+      "isFree": false,
+      "isNew": false,
+      "gachaTs": "1760000060000",
+      "seqId": "1001",
+      "kind": "draw"
+    },
+    {
+      "type": "char",
+      "feed": "char:E_CharacterGachaPoolType_Special",
+      "poolType": "E_CharacterGachaPoolType_Special",
+      "poolId": "special_synth_02",
+      "poolName": "合成特许寻访二期",
+      "itemId": "chr_synth_std01",
+      "itemName": "合成常驻干员甲",
+      "itemSubType": "",
+      "rarity": 6,
+      "isFree": false,
+      "isNew": false,
+      "gachaTs": "1760000080000",
+      "seqId": "1070",
+      "kind": "draw"
+    },
+    {
+      "type": "char",
+      "feed": "char:E_CharacterGachaPoolType_Special",
+      "poolType": "E_CharacterGachaPoolType_Special",
+      "poolId": "special_synth_02",
+      "poolName": "合成特许寻访二期",
+      "itemId": "chr_synth_up02",
+      "itemName": "合成UP干员二",
+      "itemSubType": "",
+      "rarity": 6,
+      "isFree": false,
+      "isNew": true,
+      "gachaTs": "1760000090000",
+      "seqId": "1075",
+      "kind": "draw"
+    },
+    {
+      "type": "weapon",
+      "feed": "weapon:weaponbox_synth_01",
+      "poolType": "special",
+      "poolId": "weaponbox_synth_01",
+      "poolName": "合成武器申领箱一",
+      "itemId": "wpn_synth_up01",
+      "itemName": "合成UP武器一",
+      "itemSubType": "sword",
+      "rarity": 6,
+      "isFree": false,
+      "isNew": true,
+      "gachaTs": "1760000035000",
+      "seqId": "3052",
+      "kind": "draw"
+    }
+  ]
+}
