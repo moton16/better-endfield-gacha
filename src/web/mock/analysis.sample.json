@@ -1,0 +1,391 @@
+{
+  "accountKey": "cn_2_SYNTHUID001_SYNTHROLE001",
+  "generatedAt": 1760000100000,
+  "overview": {
+    "limited": {
+      "total": 135,
+      "count6": 4,
+      "offBanner": 1,
+      "upCount": 2,
+      "avgPity6": 37.7,
+      "avgCostPerUp": 57.5,
+      "badges": [
+        {
+          "id": "double_gold",
+          "label": "十连双金",
+          "count": 1
+        },
+        {
+          "id": "nine_blue_one_purple",
+          "label": "九蓝一紫",
+          "count": 2
+        }
+      ],
+      "luckCounts": {
+        "ou": 2,
+        "fei": 1
+      }
+    },
+    "weapon": {
+      "total": 90,
+      "count6": 3,
+      "offBanner": 1,
+      "upCount": 2,
+      "avgPity6": 29.7,
+      "avgCostPerUp": 45,
+      "badges": [],
+      "luckCounts": {
+        "ou": 0,
+        "fei": 1
+      }
+    },
+    "standard": {
+      "total": 45,
+      "count6": 1,
+      "offBanner": 0,
+      "upCount": 0,
+      "avgPity6": 45,
+      "avgCostPerUp": null,
+      "badges": [
+        {
+          "id": "nine_blue_one_purple",
+          "label": "九蓝一紫",
+          "count": 1
+        }
+      ],
+      "luckCounts": {
+        "ou": 0,
+        "fei": 0
+      }
+    },
+    "beginner": {
+      "total": 40,
+      "count6": 1,
+      "offBanner": 0,
+      "upCount": 0,
+      "avgPity6": 40,
+      "avgCostPerUp": null,
+      "badges": [],
+      "luckCounts": {
+        "ou": 0,
+        "fei": 0
+      }
+    }
+  },
+  "groups": [
+    {
+      "key": "char:E_CharacterGachaPoolType_Special:special_synth_02",
+      "kind": "char",
+      "tab": "limited",
+      "poolType": "E_CharacterGachaPoolType_Special",
+      "poolId": "special_synth_02",
+      "title": "合成特许寻访二期",
+      "total": 75,
+      "paid": 70,
+      "free": 5,
+      "count6": 2,
+      "count5": 8,
+      "count4": 65,
+      "up6Ids": ["chr_synth_up02"],
+      "upKnown": true,
+      "hits": [
+        {
+          "itemId": "chr_synth_up02",
+          "itemName": "干员02",
+          "pity": 5,
+          "isFree": false,
+          "isNew": true,
+          "isUp": true,
+          "gachaTs": "1760000090000",
+          "seqId": "1075",
+          "tone": "green",
+          "luck": "ou"
+        },
+        {
+          "itemId": "chr_synth_std01",
+          "itemName": "干员03",
+          "pity": 65,
+          "isFree": false,
+          "isNew": false,
+          "isUp": false,
+          "gachaTs": "1760000080000",
+          "seqId": "1070",
+          "tone": "pink",
+          "luck": "fei"
+        }
+      ],
+      "pending": 12,
+      "smallPityMax": 80,
+      "bigPity": {
+        "max": 120,
+        "count": 70,
+        "remaining": 0,
+        "gotUp": true,
+        "fromOfficialCount": false
+      },
+      "freeBatches": [],
+      "isCurrent": true,
+      "firstTs": "1760000060000",
+      "lastTs": "1760000090000"
+    },
+    {
+      "key": "char:E_CharacterGachaPoolType_Rerun:rerun_synth_01",
+      "kind": "char",
+      "tab": "limited",
+      "poolType": "E_CharacterGachaPoolType_Rerun",
+      "poolId": "rerun_synth_01",
+      "title": "合成重构寻访一期",
+      "total": 15,
+      "paid": 15,
+      "free": 0,
+      "count6": 1,
+      "count5": 2,
+      "count4": 12,
+      "up6Ids": [],
+      "upKnown": false,
+      "hits": [
+        {
+          "itemId": "chr_synth_unknown6",
+          "itemName": "干员04",
+          "pity": 12,
+          "isFree": true,
+          "isNew": true,
+          "isUp": null,
+          "gachaTs": "1760000055000",
+          "seqId": "2015",
+          "tone": "green",
+          "luck": "ou"
+        }
+      ],
+      "pending": 15,
+      "smallPityMax": 80,
+      "bigPity": {
+        "max": 120,
+        "count": 42,
+        "remaining": 78,
+        "gotUp": false,
+        "fromOfficialCount": true
+      },
+      "freeBatches": [],
+      "isCurrent": true,
+      "firstTs": "1760000050000",
+      "lastTs": "1760000055000"
+    },
+    {
+      "key": "char:E_CharacterGachaPoolType_Special:special_synth_01",
+      "kind": "char",
+      "tab": "limited",
+      "poolType": "E_CharacterGachaPoolType_Special",
+      "poolId": "special_synth_01",
+      "title": "合成特许寻访一期",
+      "total": 45,
+      "paid": 45,
+      "free": 0,
+      "count6": 1,
+      "count5": 4,
+      "count4": 40,
+      "up6Ids": ["chr_synth_up01"],
+      "upKnown": true,
+      "hits": [
+        {
+          "itemId": "chr_synth_up01",
+          "itemName": "干员01",
+          "pity": 43,
+          "isFree": false,
+          "isNew": true,
+          "isUp": true,
+          "gachaTs": "1760000040000",
+          "seqId": "1043",
+          "tone": "yellow",
+          "luck": null
+        }
+      ],
+      "pending": 2,
+      "smallPityMax": 80,
+      "bigPity": {
+        "max": 120,
+        "count": 45,
+        "remaining": 0,
+        "gotUp": true,
+        "fromOfficialCount": false
+      },
+      "freeBatches": [],
+      "isCurrent": false,
+      "firstTs": "1760000020000",
+      "lastTs": "1760000040000"
+    },
+    {
+      "key": "weapon:weaponbox_synth_02",
+      "kind": "weapon",
+      "tab": "weapon",
+      "poolType": "special",
+      "poolId": "weaponbox_synth_02",
+      "title": "合成武器申领箱二",
+      "total": 52,
+      "paid": 52,
+      "free": 0,
+      "count6": 2,
+      "count5": 6,
+      "count4": 44,
+      "up6Ids": ["wpn_synth_up01"],
+      "upKnown": true,
+      "hits": [
+        {
+          "itemId": "wpn_synth_up01",
+          "itemName": "武器01",
+          "pity": 22,
+          "isFree": false,
+          "isNew": true,
+          "isUp": true,
+          "gachaTs": "1760000035000",
+          "seqId": "3052",
+          "tone": "yellow",
+          "luck": null
+        },
+        {
+          "itemId": "wpn_synth_std01",
+          "itemName": "武器02",
+          "pity": 30,
+          "isFree": false,
+          "isNew": false,
+          "isUp": false,
+          "gachaTs": "1760000030000",
+          "seqId": "3030",
+          "tone": "yellow",
+          "luck": null
+        }
+      ],
+      "pending": 0,
+      "smallPityMax": 40,
+      "bigPity": {
+        "max": 80,
+        "count": 52,
+        "remaining": 0,
+        "gotUp": true,
+        "fromOfficialCount": false
+      },
+      "freeBatches": [],
+      "isCurrent": true,
+      "firstTs": "1760000010000",
+      "lastTs": "1760000035000"
+    },
+    {
+      "key": "weapon:weaponbox_synth_01",
+      "kind": "weapon",
+      "tab": "weapon",
+      "poolType": "rerun",
+      "poolId": "weaponbox_synth_01",
+      "title": "合成武器申领箱一",
+      "total": 38,
+      "paid": 38,
+      "free": 0,
+      "count6": 1,
+      "count5": 4,
+      "count4": 33,
+      "up6Ids": ["wpn_synth_up02"],
+      "upKnown": true,
+      "hits": [
+        {
+          "itemId": "wpn_synth_up02",
+          "itemName": "武器03",
+          "pity": 37,
+          "isFree": false,
+          "isNew": true,
+          "isUp": true,
+          "gachaTs": "1760000018000",
+          "seqId": "3018",
+          "tone": "pink",
+          "luck": "fei"
+        }
+      ],
+      "pending": 1,
+      "smallPityMax": 40,
+      "bigPity": {
+        "max": 80,
+        "count": 38,
+        "remaining": 0,
+        "gotUp": true,
+        "fromOfficialCount": false
+      },
+      "freeBatches": [],
+      "isCurrent": false,
+      "firstTs": "1760000008000",
+      "lastTs": "1760000018000"
+    },
+    {
+      "key": "char:E_CharacterGachaPoolType_Standard:standard_synth",
+      "kind": "char",
+      "tab": "standard",
+      "poolType": "E_CharacterGachaPoolType_Standard",
+      "poolId": "standard_synth",
+      "title": "基础寻访",
+      "total": 45,
+      "paid": 45,
+      "free": 0,
+      "count6": 1,
+      "count5": 5,
+      "count4": 39,
+      "up6Ids": [],
+      "upKnown": false,
+      "hits": [
+        {
+          "itemId": "chr_synth_std01",
+          "itemName": "干员03",
+          "pity": 45,
+          "isFree": false,
+          "isNew": true,
+          "isUp": null,
+          "gachaTs": "1760000015000",
+          "seqId": "4045",
+          "tone": "yellow",
+          "luck": null
+        }
+      ],
+      "pending": 0,
+      "smallPityMax": 80,
+      "freeBatches": [],
+      "isCurrent": true,
+      "firstTs": "1760000005000",
+      "lastTs": "1760000015000"
+    },
+    {
+      "key": "char:E_CharacterGachaPoolType_Beginner:beginner_synth",
+      "kind": "char",
+      "tab": "beginner",
+      "poolType": "E_CharacterGachaPoolType_Beginner",
+      "poolId": "beginner_synth",
+      "title": "启程寻访",
+      "total": 40,
+      "paid": 40,
+      "free": 0,
+      "count6": 1,
+      "count5": 4,
+      "count4": 35,
+      "up6Ids": [],
+      "upKnown": false,
+      "hits": [
+        {
+          "itemId": "chr_synth_std02",
+          "itemName": "干员05",
+          "pity": 40,
+          "isFree": false,
+          "isNew": true,
+          "isUp": null,
+          "gachaTs": "1760000002000",
+          "seqId": "5040",
+          "tone": "yellow",
+          "luck": null
+        }
+      ],
+      "pending": 0,
+      "smallPityMax": 80,
+      "freeBatches": [],
+      "isCurrent": true,
+      "firstTs": "1760000001000",
+      "lastTs": "1760000002000"
+    }
+  ],
+  "notes": [
+    "池「合成重构寻访一期」缺少 UP 信息，未判定歪（可补 src/core/data/up-map.json）"
+  ]
+}

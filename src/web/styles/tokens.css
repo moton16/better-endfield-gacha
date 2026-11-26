@@ -1,0 +1,37 @@
+:root {
+  --bg: #f2f3f5;
+  --card: #ffffff;
+  --card-soft: #f7f8fa;
+  --text: #1f2329;
+  --muted: #8a8f98;
+  --line: #e8eaee;
+  --radius: 12px;
+  --bar-green: #35d49a;
+  --bar-yellow: #f8d51c;
+  --bar-pink: #f37fb7;
+  --chip-green-bg: #35d49a;
+  --chip-green-fg: #0b3d2c;
+  --chip-pink-bg: #f9a8d4;
+  --chip-pink-fg: #6b0f3d;
+  --off-badge-bg: #fbd0e6;
+  --off-badge-fg: #b0155f;
+  --pool-head-bg: linear-gradient(90deg, #f6efe0, #eef0f4);
+  --danger: #e5484d;
+  --accent: #111827;
+  --accent-fg: #ffffff;
+  --font: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121316;
+    --card: #1b1d22;
+    --card-soft: #24272e;
+    --text: #eceef2;
+    --muted: #8b919c;
+    --line: #2a2d34;
+    --pool-head-bg: linear-gradient(90deg, #2b271e, #23262d);
+    --accent: #eceef2;
+    --accent-fg: #121316;
+  }
+}

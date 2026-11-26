@@ -41,7 +41,7 @@
 │   │   └── types.ts
 │   ├── cli/              # 命令注册表（index.ts / context.ts / util.ts / commands/*）
 │   ├── server/           # W3：本地 127.0.0.1 HTTP API + 静态托管 + 任务管理 + 窗口启动
-│   └── web/              # （待建）Preact + Vite 前端，小黑盒风格
+│   └── web/              # W4：Preact + Vite 前端（小黑盒风格、?mock=1 合成预览）
 ├── tests/                # vitest；helpers/ 含合成 blockfile、ef-server 与 fake-passport；fixtures/ 含合成夹具
 └── docs/                 # DEVELOPER.md（本文）+ dev_changelog/；其余被 gitignore
 ```
@@ -82,6 +82,7 @@ CLI / (未来)本地 HTTP + Web UI
 | `route-b.ts` | 路线 B 编排 | `inspectPassport`, `syncFromPassport` | 换票必须传外层 `binding.uid`（非 `roleId`）；每次换票按需重 grant；单绑定失败只写 `item.error` 不中断其它绑定；多角色时 `u8_token` 只对应默认角色 |
 | `io/*`（`validate.ts` / `v1.ts` / `lcx.ts` / `importer.ts` / `csv.ts`） | 导入 / 导出 / 离愁轩救援 / CSV / 备份 | `validateRecord`, `parseV1`, `parseLcx`, `planImport`, `applyImport`, `toCsv` | 官方优先不覆盖（冲突记入 `conflicts`）；v1 `accountKey` 按四维重算校验；非 `draw`（如 `gift_intel_book`）实证存在 `rarity=0` 且 `itemId=""`，校验仅对 `kind==="draw"` 强约束 1..6 与非空 `itemId`；`lcx` 保守映射（`--pool-map` → 本地唯一映射，歧义记 `ambiguous`、缺失记 `unresolvedPools`），含 `rarity=3 && !has6` 整体 +1 启发式与 `lcx:unknown4` 占位；`backupTo` 使用 `VACUUM INTO` 且同秒撞车自动加后缀 |
 | `server/*`、`core/mask.ts`、`cli/commands/serve.ts` | 本地 HTTP API + 静态托管 + 任务管理 + 窗口拉起 | `createApp`, `JobManager`, `serveStatic`, `openWindow`, `serve` | 仅监听 `127.0.0.1`；`/api/*` 强制校验 `X-BEG-Key`（先比长度再 `timingSafeEqual`）、`Host`（`127.0.0.1:<port>`/`localhost:<port>`）、同源 `Origin` 与变更请求 `Content-Type: application/json`，且绝不返回 CORS 允许头；普通 body 上限 64 KB、`/api/import` 上限 60 MB；`JobManager` 单活 `sync` 并发回 409 并对日志/错误脱敏（不回传 `stack`）；`/api/link` 默认不回明文，仅 `reveal:true` 才回 |
+| `web/*`、`vite.config.ts`、`tsconfig.web.json` | Preact + Vite 前端界面与 `?mock=1` 模式 | `App`, `bootstrapKey`, `api`, `download`, `barWidth`, `SyncDialog`, `DataDialog` | 仅引用零 Node 依赖的 `core/analysis/{types,common,config}`（不直接包含 `core/types.ts`）；`#k=<key>` 提取后立即 `history.replaceState` 抹除并经 `X-BEG-Key` 发送；下载须走 `fetch`+Blob；禁止外部 CDN/字体/图片 URL 与未转义 HTML 注入；Vite dev `/api` 代理须改写 `origin` 为目标本机地址通过同源校验 |
 
 ## 5. 数据布局与安全边界
 

@@ -84,3 +84,19 @@
 >   - `serveStatic` 增加 `fs.realpathSync` 根目录边界校验并显式处理 `HEAD` 请求与空字节/反斜杠路径。
 >   - `close()` 调用 `server.closeAllConnections?.()` 防止 keep-alive 连接阻塞端口释放。
 > - **验证**：`.\node_modules\.bin\tsc.CMD -p tsconfig.json` 与 `.\node_modules\.bin\tsc.CMD -p tsconfig.build.json --noEmit` 0 error；`.\node_modules\.bin\vitest.CMD run` 10 个测试文件共 87 passed（新增 16 条）；另以临时数据目录启动 `beg serve --no-open` 实测 `netstat` 仅监听 `127.0.0.1:<port>`、`/api/health` 401/200、`/api/accounts` 与 `/api/accounts/:key/analysis` 返回正常。未覆盖：前端构建产物 `dist-web/`（由 W4 负责）与真实 Edge `--app` GUI 窗口弹窗（仅在无头/CLI 验证）。
+
+### [W4] — Web UI（Preact + Vite）
+> **涵盖提交**：分支 `feat/w4-web`（见 `git log`）。
+>
+> **代码改动概况**：
+> - `pnpm-workspace.yaml`、`package.json`、`tsconfig.web.json`、`vite.config.ts`：将 `allowBuilds.esbuild` 设为 `true` 解除 pnpm 11 构建阻塞；新增 `preact` 与 `vite`/`@preact/preset-vite`/`jsdom`/`@testing-library/preact`；新增 `web:dev`/`web:build`/`typecheck:web` 脚本；配置 Vite（`root: "src/web"`、`base: "./"`、`outDir: "../../dist-web"`、`/api` 代理改写 `origin` 以通过 W3 同源校验，且测试模式下回退根目录与 Preact JSX 变换）。
+> - `src/web/{index.html,main.tsx,App.tsx}`、`src/web/api/{types,client,mock}.ts`、`src/web/mock/*.json`：实现密钥引导（`#k=` 提取后立即 `history.replaceState` 抹除、经 `X-BEG-Key` 与 `Content-Type: application/json` 请求、401 弹出 `KeyPrompt`、Blob 下载附带密钥）及同构于 W3 合成夹具的 `?mock=1` 模式。
+> - `src/web/lib/bar.ts`、`src/web/styles/{tokens,base,components}.css`、`src/web/components/{Header,SummaryCards,BadgeRow,PoolTabs,PoolSection,HitRow,PendingRow,Avatar,SyncDialog,DataDialog,KeyPrompt,Toast}.tsx`：实现小黑盒风格总览三卡、欧非徽章、四类池 Tab、详情折叠、保底彩色水位柱、默认隐私遮罩、路线 A 缓存扫描/链接/同步与路线 B 通行证 `inspect`/保险库/同步弹窗、导入干跑与确认/导出/备份弹窗；零外部 CDN/字体/图片 URL，纯 JSX 文本转义。
+> - `tests/{web-bar.test.tsx,web-client.test.tsx,web-ui.test.tsx,web-build.test.ts}`：补齐 16 条前端单测/集成测试（含 jsdom 交互与 XSS 防护、Vite 打包产物 < 200 KB 验证）。
+> - `docs/DEVELOPER.md`：更新仓库地图 `web/` 行与 §4 模块职责及安全坑位。
+
+- **根因与关键决策**：
+  - 采用指南方案 A：`tsconfig.web.json` 仅纳入零 Node 依赖的 `src/core/analysis/{types,common,config}.ts`（不直接包含依赖 `cache/extract.ts` 的 `src/core/types.ts`），并在 `src/web/api/types.ts` 定义与 W3 路由对齐的响应 DTO，零跨边界改动 `src/core/**`。
+  - `vite.config.ts` 通过 `mode === "test"` 区分 Vitest 与 Vite dev/build，避免 `root: "src/web"` 导致 Vitest 找不到 `tests/`，同时保留纯生产配置输出至 `dist-web/`。
+  - `isMock()` 按当前 `location.search` 动态判定而非模块加载期常量，便于在单测与运行时无刷新切换状态。
+- **验证**：`pnpm typecheck`、`pnpm typecheck:web`、`.\node_modules\.bin\tsc.CMD -p tsconfig.build.json --noEmit` 均 0 error；`pnpm test` 14 个测试文件共 103 passed（新增 16 条 W4 测试）；`pnpm web:build` 生成 `dist-web/`（`index.html` 0.43 kB + CSS 7.74 kB + JS 50.57 kB，未压缩合计约 58.74 KB < 200 KB）；以临时空 `--data-dir` + `--no-open` 启动真实 `beg serve` 冒烟实测 `GET /` 200、CSP 头合规、静态 JS/CSS 200、`/api/health` 401/200。未覆盖：真实 Edge `--app` GUI 视觉巡检与真实账号数据联调。

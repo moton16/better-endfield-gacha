@@ -1,0 +1,28 @@
+[
+  {
+    "accountKey": "cn_2_SYNTHUID001_SYNTHROLE001",
+    "maskedKey": "cn_2_#11aa22bb",
+    "region": "cn",
+    "channelName": "bilibili服",
+    "nickname": "合成测试账号A",
+    "source": "cache",
+    "updatedAt": 1760000090000,
+    "counts": {
+      "total": 272,
+      "draws": 270
+    }
+  },
+  {
+    "accountKey": "cn_1_SYNTHUID002_SYNTHROLE002",
+    "maskedKey": "cn_1_#33cc44dd",
+    "region": "cn",
+    "channelName": "官服",
+    "nickname": "合成测试账号B",
+    "source": "passport",
+    "updatedAt": 1760000050000,
+    "counts": {
+      "total": 85,
+      "draws": 85
+    }
+  }
+]
