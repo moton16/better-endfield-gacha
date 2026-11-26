@@ -260,4 +260,37 @@ export class GachaStore {
     }));
   }
   // ==== W1 END
+
+  // ==== W2 BEGIN
+  /** 某账号已有记录的 (feed|seq) → 指纹 映射，用于干跑与冲突检测 */
+  getRecordFingerprints(accountKey: string): Map<string, string> {
+    const rows = this.db
+      .prepare("SELECT feed, seq_id, item_id, rarity, gacha_ts, is_free, kind FROM records WHERE account_key = ?")
+      .all(accountKey) as Array<{
+        feed: string;
+        seq_id: string;
+        item_id: string;
+        rarity: number;
+        gacha_ts: string;
+        is_free: number;
+        kind: string;
+      }>;
+    const m = new Map<string, string>();
+    for (const r of rows) m.set(`${r.feed}|${r.seq_id}`, `${r.item_id}|${r.rarity}|${r.gacha_ts}|${r.is_free}|${r.kind}`);
+    return m;
+  }
+
+  /** 一致性备份：VACUUM INTO，目标文件必须不存在 */
+  backupTo(file: string): void {
+    if (fs.existsSync(file)) {
+      throw new Error(`备份目标文件已存在：${file}`);
+    }
+    fs.mkdirSync(path.dirname(path.resolve(file)), { recursive: true });
+    this.db.exec(`VACUUM INTO '${file.replace(/'/g, "''")}'`);
+  }
+
+  getAccount(accountKey: string): AccountRow | null {
+    return this.listAccounts().find((a) => a.accountKey === accountKey) ?? null;
+  }
+  // ==== W2 END
 }

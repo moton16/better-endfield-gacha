@@ -26,6 +26,9 @@ export const OPTIONS = {
   "dry-run": { type: "boolean" },
   analysis: { type: "boolean" },
   help: { type: "boolean", short: "h" },
+  apply: { type: "boolean" },
+  "pool-map": { type: "string" },
+  "include-gifts": { type: "boolean" },
 } as const;
 
 export interface CliContext {

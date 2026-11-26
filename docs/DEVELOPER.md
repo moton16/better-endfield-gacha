@@ -31,6 +31,7 @@
 │   │   ├── api/          # ef-webview 客户端 + 响应归一化
 │   │   ├── auth/         # 路线 A 反查（role.ts）；路线 B 通行证/DPAPI/保险库（passport.ts/dpapi.ts/vault.ts）
 │   │   ├── data/         # 静态回退映射（up-map.json）
+│   │   ├── io/           # W2：v1 导入、离愁轩救援解析、CSV 导出与一致性备份
 │   │   ├── storage/      # SQLite（node:sqlite）
 │   │   ├── sync/         # 全卡池拉取与增量入库
 │   │   ├── route-a.ts    # 路线 A 编排
@@ -77,6 +78,7 @@ CLI / (未来)本地 HTTP + Web UI
 | `auth/passport.ts` | 鹰角通行证接口与扫码登录 | `grantOAuth`, `listBindings`, `u8TokenByUid`, `parseHyTokenInput` | 业务状态字段严格为 `status === 0`（不是 `code`）；扫码三接口来自社区协议描述 **未实测**；错误消息经 `scrubUrl` 抹掉 token |
 | `auth/dpapi.ts`、`auth/vault.ts` | 通行证加密保险库 | `dpapi`, `Vault` | Windows 下用 `pwsh` 调 DPAPI（`CurrentUser`），明文走 stdin base64 传递；`list()` 不返回 `cipher`；损坏或版本不匹配文件视为空 |
 | `route-b.ts` | 路线 B 编排 | `inspectPassport`, `syncFromPassport` | 换票必须传外层 `binding.uid`（非 `roleId`）；每次换票按需重 grant；单绑定失败只写 `item.error` 不中断其它绑定；多角色时 `u8_token` 只对应默认角色 |
+| `io/*`（`validate.ts` / `v1.ts` / `lcx.ts` / `importer.ts` / `csv.ts`） | 导入 / 导出 / 离愁轩救援 / CSV / 备份 | `validateRecord`, `parseV1`, `parseLcx`, `planImport`, `applyImport`, `toCsv` | 官方优先不覆盖（冲突记入 `conflicts`）；v1 `accountKey` 按四维重算校验；非 `draw`（如 `gift_intel_book`）实证存在 `rarity=0` 且 `itemId=""`，校验仅对 `kind==="draw"` 强约束 1..6 与非空 `itemId`；`lcx` 保守映射（`--pool-map` → 本地唯一映射，歧义记 `ambiguous`、缺失记 `unresolvedPools`），含 `rarity=3 && !has6` 整体 +1 启发式与 `lcx:unknown4` 占位；`backupTo` 使用 `VACUUM INTO` 且同秒撞车自动加后缀 |
 
 ## 5. 数据布局与安全边界
 

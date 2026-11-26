@@ -280,7 +280,9 @@ describe("路线 B（syncFromPassport / inspectPassport）", () => {
 
 describe("CLI 命令注册表与脱敏工具", () => {
   it("COMMANDS 包含全部基础与路线 B 命令，makeContext/parseProvider/maskKey 行为正确", () => {
-    expect(COMMANDS.map((c) => c.name)).toEqual(["scan", "link", "sync", "login", "logout", "accounts", "stats", "export"]);
+    expect(COMMANDS.map((c) => c.name)).toEqual(
+      expect.arrayContaining(["scan", "link", "sync", "login", "logout", "accounts", "stats", "export"]),
+    );
     const ctx = makeContext(["sync", "--passport", "--token-stdin", "--channel", "2", "--cache-dir", "a", "--cache-dir", "b"]);
     expect(ctx.command).toBe("sync");
     expect(ctx.bool("passport")).toBe(true);

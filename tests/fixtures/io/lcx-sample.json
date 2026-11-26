@@ -1,0 +1,61 @@
+{
+  "code": 0,
+  "data": {
+    "uid": "synth_uid_990011",
+    "nickName": "SynthTester",
+    "serverId": "1",
+    "server": "bilibili",
+    "total": 6,
+    "exportTs": 1760000900,
+    "list": [
+      {
+        "poolName": "测试特许池",
+        "seqId": "1001",
+        "gachaTs": "1760000100",
+        "rarity": 5,
+        "isFree": false,
+        "charName": "星辉测试员"
+      },
+      {
+        "poolName": "测试特许池",
+        "seqId": "1002",
+        "gachaTs": "1760000101000",
+        "rarity": 3,
+        "isFree": false,
+        "charName": "未知角色"
+      },
+      {
+        "poolName": "测试特许池",
+        "seqId": "1003",
+        "gachaTs": "1760000102",
+        "rarity": 4,
+        "isFree": true,
+        "charName": "夜航测试员"
+      },
+      {
+        "poolName": "测试武器箱",
+        "seqId": "2001",
+        "gachaTs": "1760000200",
+        "rarity": 4,
+        "weaponName": "应急手段",
+        "weaponType": "sword"
+      },
+      {
+        "poolName": "测试武器箱",
+        "seqId": "2002",
+        "gachaTs": "1760000201000",
+        "rarity": 3,
+        "weaponName": "未知武器",
+        "weaponType": "polearm"
+      },
+      {
+        "poolName": "未登记旧池",
+        "seqId": "3001",
+        "gachaTs": "1760000300",
+        "rarity": 5,
+        "isFree": false,
+        "charName": "未知远行者"
+      }
+    ]
+  }
+}
