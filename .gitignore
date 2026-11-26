@@ -1,0 +1,35 @@
+# Deps / build
+node_modules/
+dist/
+dist-web/
+*.tsbuildinfo
+coverage/
+
+# Docs — 默认忽略本地过程文档，仅白名单放行常驻开发者文档
+docs/*
+!docs/DEVELOPER.md
+!docs/dev_changelog/
+!docs/dev_changelog/**
+
+# 运行期数据 / 凭据（严禁入库：真实 token、UID、抽卡记录、个人缓存）
+data/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.db
+.env
+.env.*
+*.token
+*.secret
+local/
+_local/
+
+# 本机真实缓存快照（仅供本地调试）
+fixtures/real/
+PlatformProcess/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
