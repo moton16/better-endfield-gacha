@@ -21,3 +21,9 @@
 | 项目 | 许可证 | 边界说明 |
 |---|---|---|
 | `mon3tr-dev/endprotocol` | AGPL-3.0 | **仅用于查阅公开协议字段与接口行为描述；严禁且未拷贝任何代码片段至本仓库。** |
+
+## 静态内嵌开源字体
+
+| 字体 | 许可证 | 用途与裁剪说明 |
+|---|---|---|
+| [uswds/public-sans](https://github.com/uswds/public-sans) | SIL OFL-1.1 / GSA CC0-1.0 | 前端 ASCII 数字与指标排版子集（`src/web/fonts/PublicSans-*.woff`），仅用于本地 UI 字体渲染 |

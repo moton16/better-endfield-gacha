@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 import { ApiError, api, bootstrapKey, clearKey } from "./api/client.js";
 import { isMock } from "./api/mock.js";
-import type { AccountAnalysis, AccountSummary, Tab } from "./api/types.js";
+import type { AccountAnalysis, AccountSummary } from "./api/types.js";
 import { DataDialog } from "./components/DataDialog.js";
 import { Header } from "./components/Header.js";
 import { KeyPrompt } from "./components/KeyPrompt.js";
@@ -10,7 +10,12 @@ import { PoolTabs } from "./components/PoolTabs.js";
 import { SummaryCards } from "./components/SummaryCards.js";
 import { SyncDialog } from "./components/SyncDialog.js";
 import { Toast } from "./components/Toast.js";
-import { deriveGlobalSummary } from "./lib/bar.js";
+import {
+  deriveGlobalSummary,
+  deriveUiCards,
+  groupMatchesUiTab,
+  type UiTab,
+} from "./lib/bar.js";
 
 const SHOW_FIVE_KEY = "beg.show5";
 
@@ -35,7 +40,7 @@ export function App() {
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
   const [accountKey, setAccountKey] = useState("");
   const [analysis, setAnalysis] = useState<AccountAnalysis | null>(null);
-  const [tab, setTab] = useState<Tab>("limited");
+  const [tab, setTab] = useState<UiTab>("special");
   const [showFiveStar, setShowFiveStar] = useState<boolean>(() => readShowFivePref());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -143,7 +148,13 @@ export function App() {
     () => (analysis ? deriveGlobalSummary(analysis) : null),
     [analysis],
   );
-  const tabGroups = analysis ? analysis.groups.filter((g) => g.tab === tab && g.total > 0) : [];
+  const uiCards = useMemo(
+    () => (analysis ? deriveUiCards(analysis) : []),
+    [analysis],
+  );
+  const tabGroups = analysis
+    ? analysis.groups.filter((g) => groupMatchesUiTab(g, tab) && g.total > 0)
+    : [];
 
   return (
     <div class="app-shell">
@@ -194,7 +205,7 @@ export function App() {
       {analysis && globalSummary && (
         <main>
           <SummaryCards
-            overview={analysis.overview}
+            cards={uiCards}
             globalSummary={globalSummary}
             activeTab={tab}
             onSelectTab={setTab}
@@ -209,7 +220,7 @@ export function App() {
             />
 
             {tabGroups.length === 0 ? (
-              <div class="record-area-empty muted">当前分类下暂无抽卡记录。</div>
+              <div class="record-area-empty">当前分类下暂无抽卡记录</div>
             ) : (
               <div class="pool-list">
                 {tabGroups.map((group) => (
@@ -225,11 +236,11 @@ export function App() {
               class="footer-data-btn"
               onClick={() => setDialog("data")}
             >
-              <svg viewBox="0 0 16 16" width="13" height="13" fill="none" aria-hidden="true">
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="none" aria-hidden="true">
                 <path
                   d="M8 2.5v7.5M5 5.5L8 2.5l3 3M3 10.5v2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-2"
                   stroke="currentColor"
-                  stroke-width="1.4"
+                  stroke-width="1.3"
                   stroke-linecap="round"
                   stroke-linejoin="round"
                 />

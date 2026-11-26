@@ -1,26 +1,49 @@
+@font-face {
+  font-family: "Public Sans BEG";
+  src: url("../fonts/PublicSans-Regular.woff") format("woff");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0020-007E, U+00D7, U+2013-2014;
+}
+
+@font-face {
+  font-family: "Public Sans BEG";
+  src: url("../fonts/PublicSans-Medium.woff") format("woff");
+  font-weight: 500 600;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0020-007E, U+00D7, U+2013-2014;
+}
+
+@font-face {
+  font-family: "Public Sans BEG";
+  src: url("../fonts/PublicSans-Bold.woff") format("woff");
+  font-weight: 700 900;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0020-007E, U+00D7, U+2013-2014;
+}
+
 :root {
-  --bg: #e7e8eb;
-  --bg-stripe-a: rgba(255, 255, 255, 0.36);
-  --bg-stripe-b: rgba(0, 0, 0, 0.025);
+  --desktop-bg: #eef0f3;
+  --sheet-bg: #ffffff;
   --panel-bg: #f2f2f2;
   --card: #fcfcfc;
   --card-soft: #efefef;
   --weapon-row-bg: #ededed;
   --text: #14191e;
   --text-strong: #000000;
-  --muted: rgba(20, 25, 30, 0.56);
+  --muted: rgba(0, 0, 0, 0.5);
+  --muted-light: rgba(0, 0, 0, 0.38);
   --line: rgba(0, 0, 0, 0.08);
   --line-soft: rgba(0, 0, 0, 0.05);
-  --radius: 10px;
+  --radius: 8px;
   --bar-green: #27e29b;
   --bar-yellow: #fadd00;
   --bar-pink: #ff83cd;
   --chip-green-bg: #27e29b;
-  --chip-green-fg: #0b3d2c;
   --chip-pink-bg: #ff83cd;
-  --chip-pink-fg: #590c35;
-  --off-badge-bg: #fbd0e6;
-  --off-badge-fg: #eb3b49;
   --stamp-green: #09b372;
   --stamp-yellow: #d19b00;
   --stamp-pink: #e23e73;
@@ -32,29 +55,6 @@
   --blue: #006ef4;
   --accent: #14191e;
   --accent-fg: #ffffff;
-  --font: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #111317;
-    --bg-stripe-a: rgba(255, 255, 255, 0.02);
-    --bg-stripe-b: rgba(0, 0, 0, 0.25);
-    --panel-bg: #191b20;
-    --card: #22252c;
-    --card-soft: #262a33;
-    --weapon-row-bg: #21242b;
-    --text: #eceef2;
-    --text-strong: #ffffff;
-    --muted: #939aa6;
-    --line: rgba(255, 255, 255, 0.09);
-    --line-soft: rgba(255, 255, 255, 0.06);
-    --pool-head-bg: #1e2128;
-    --switch-track: #3a3f4a;
-    --stamp-green: #27e29b;
-    --stamp-yellow: #fadd00;
-    --stamp-pink: #ff83cd;
-    --accent: #eceef2;
-    --accent-fg: #121316;
-  }
+  --font-num: "Public Sans BEG", "Helvetica Neue", Arial, sans-serif;
+  --font: "Public Sans BEG", "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
 }

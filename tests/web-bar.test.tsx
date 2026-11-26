@@ -107,17 +107,24 @@ describe("bar helpers", () => {
     expect(fmtMonthDay("1760000000000")).toMatch(/^\d{2}-\d{2}$/);
     expect(fmtShortDateRange("1760000000000", "1760086400000")).toMatch(/^\d{2}\.\d{2}~\d{2}\.\d{2}$/);
     expect(fmtStatStartDate(null)).toBe("暂无记录");
-    expect(fmtStatStartDate("1760000000000")).toMatch(/^202\d年\d+月\d+日$/);
+    expect(fmtStatStartDate("1760000000000")).toMatch(/^202\d年\d{2}月\d{2}日$/);
     expect(fmtRelativeTime(1000, 1000 + 30_000)).toBe("刚刚");
     expect(fmtRelativeTime(1000, 1000 + 5 * 60_000)).toBe("5 分钟前");
   });
 });
 
 describe("HitRow, PendingRow & WeaponTenRollRow", () => {
-  it("renders 歪 stamp only when isUp===false, luck labels, multi-gold ribbon, and 5-star sub-hits", () => {
+  it("renders 歪 stamp only when isUp===false, luck labels, prevPoolDiff, multi-gold ribbon, and 5-star sub-hits", () => {
     const { container, rerender } = render(
       <HitRow
-        hit={makeHit({ itemName: "常驻干员甲", pity: 76, isUp: false, tone: "pink", luck: "fei" })}
+        hit={makeHit({
+          itemName: "常驻干员甲",
+          pity: 76,
+          isUp: false,
+          tone: "pink",
+          luck: "fei",
+          prevPoolDiff: 18,
+        })}
         max={80}
         showFiveStar
         multiGoldCount={2}
@@ -125,6 +132,7 @@ describe("HitRow, PendingRow & WeaponTenRollRow", () => {
     );
     expect(screen.getByText("歪")).toBeTruthy();
     expect(screen.getByText("超非")).toBeTruthy();
+    expect(screen.getByText("已垫18抽")).toBeTruthy();
     expect(screen.getByText("十连双金")).toBeTruthy();
     expect(container.querySelector(".continuous-ssr")).toBeTruthy();
     expect(container.querySelector(".off-stamp.tone-pink")).toBeTruthy();
@@ -207,9 +215,8 @@ describe("PoolSection", () => {
       />,
     );
 
-    expect(screen.getByText("当前")).toBeTruthy();
-    expect(screen.getByText("UP 信息缺失")).toBeTruthy();
-    expect(screen.getByText(/距大保底/)).toBeTruthy();
+    expect(screen.getByText(/大保底余 78/)).toBeTruthy();
+    expect(screen.getByTitle(/缺少 UP 信息/)).toBeTruthy();
 
     // Pity help popover
     expect(screen.queryByLabelText("垫抽释义说明")).toBeNull();

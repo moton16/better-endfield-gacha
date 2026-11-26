@@ -28,10 +28,9 @@ export function PendingRow({
               role="img"
               aria-label={`当前已垫 ${pending} 抽`}
             >
-              {pending}
-              <small>抽</small>
+              <span class="bar-num">{pending}</span>
+              <span class="bar-unit">抽</span>
             </div>
-            <span class="pending-caption">已垫未出 6★</span>
           </div>
         </div>
       </div>

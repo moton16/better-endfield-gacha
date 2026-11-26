@@ -25,6 +25,8 @@ export interface SixStarHit {
   seqId: string;
   tone: Tone;
   luck: Luck;
+  /** 从上一个同规则跨池共享卡池带入本池的已垫付费抽数（仅首轮出 6★ 时标注） */
+  prevPoolDiff?: number;
   /** 本次 6★ 保底周期内抽出的 5★ 聚合明细 */
   subHits5?: SubHitSummary[];
 }

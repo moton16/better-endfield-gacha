@@ -105,17 +105,17 @@ export function computeRating(
     }
   }
   if (paidCount === 0) {
-    if (totalDraws === 0) return { ratingLabel: "暂未寻访", isLucky: false };
-    if (total6 > 0) return { ratingLabel: "白嫖出金", isLucky: true };
-    return { ratingLabel: "蓄势待发", isLucky: false };
+    if (totalDraws === 0) return { ratingLabel: "《持玉观望的屯屯鼠》", isLucky: false };
+    if (total6 > 0) return { ratingLabel: "《白嫖出金》", isLucky: true };
+    return { ratingLabel: "《蓄势待发》", isLucky: false };
   }
   const avgRatio = ratioSum / paidCount;
-  if (avgRatio <= 0.4) return { ratingLabel: "宇宙无敌大欧皇", isLucky: true };
-  if (avgRatio <= 0.55) return { ratingLabel: "天选大欧皇", isLucky: true };
-  if (avgRatio <= 0.68) return { ratingLabel: "小有欧气", isLucky: true };
-  if (avgRatio <= 0.78) return { ratingLabel: "中规中矩", isLucky: false };
-  if (avgRatio <= 0.88) return { ratingLabel: "略显非酋", isLucky: false };
-  return { ratingLabel: "终末地大非酋", isLucky: false };
+  if (avgRatio <= 0.4) return { ratingLabel: "《宇宙无敌大欧皇》", isLucky: true };
+  if (avgRatio <= 0.55) return { ratingLabel: "《天选大欧皇》", isLucky: true };
+  if (avgRatio <= 0.68) return { ratingLabel: "《小有欧气》", isLucky: true };
+  if (avgRatio <= 0.78) return { ratingLabel: "《中规中矩》", isLucky: false };
+  if (avgRatio <= 0.88) return { ratingLabel: "《略显非酋》", isLucky: false };
+  return { ratingLabel: "《终末地大非酋》", isLucky: false };
 }
 
 export function globalSummaryFor(

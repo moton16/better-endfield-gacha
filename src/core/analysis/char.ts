@@ -45,11 +45,22 @@ export function analyzeCharFeed(
   const order: string[] = [];
   let small = 0;
   const subTracker = new SubHitTracker();
+  const carryEntry = new Map<string, number>();
+  const carryConsumed = new Map<string, boolean>();
+  const freeMaps = new Map<string, Map<string, { gachaTs: string; size: number; sixStars: number }>>();
 
   for (const r of records.filter(isDraw)) {
     const gkey = spec.groupBy === "poolName" ? r.poolName || r.poolId : r.poolId;
     let g = groups.get(gkey);
     if (!g) {
+      if (spec.scope === "perPool") {
+        small = 0;
+        subTracker.clear();
+      }
+      carryEntry.set(gkey, spec.scope === "global" ? small : 0);
+      carryConsumed.set(gkey, false);
+      freeMaps.set(gkey, new Map());
+
       const u = up.up6(r.poolId);
       g = {
         key: `char:${poolType}:${gkey}`,
@@ -77,10 +88,6 @@ export function analyzeCharFeed(
       };
       groups.set(gkey, g);
       order.push(gkey);
-      if (spec.scope === "perPool") {
-        small = 0;
-        subTracker.clear();
-      }
     }
 
     // rerun 跨版本时取最新版本的 poolId 与 UP 信息
@@ -98,6 +105,12 @@ export function analyzeCharFeed(
     g.total++;
     if (r.isFree) {
       g.free++;
+      const fmap = freeMaps.get(gkey)!;
+      const ts = r.gachaTs || "0";
+      const fb = fmap.get(ts) ?? { gachaTs: ts, size: 0, sixStars: 0 };
+      fb.size += 1;
+      if (r.rarity === 6) fb.sixStars += 1;
+      fmap.set(ts, fb);
     } else {
       g.paid++;
       small++;
@@ -106,6 +119,7 @@ export function analyzeCharFeed(
     if (r.rarity === 6) {
       g.count6++;
       const u = up.up6(r.poolId);
+      const carry = !carryConsumed.get(gkey) ? (carryEntry.get(gkey) ?? 0) : 0;
       g.hits.push({
         itemId: r.itemId,
         itemName: r.itemName,
@@ -117,11 +131,13 @@ export function analyzeCharFeed(
         seqId: r.seqId,
         tone: tone(small, max),
         luck: r.isFree ? null : luck(small, max),
+        ...(carry > 0 ? { prevPoolDiff: carry } : {}),
         subHits5: subTracker.snapshot(),
       });
       if (!r.isFree) {
         small = 0;
         subTracker.clear();
+        carryConsumed.set(gkey, true);
       }
     } else if (r.rarity === 5) {
       g.count5++;
@@ -133,7 +149,16 @@ export function analyzeCharFeed(
     g.pendingSubHits5 = subTracker.snapshot();
   }
 
-  const out = order.map((k) => groups.get(k)!);
+  const out = order.map((k) => {
+    const g = groups.get(k)!;
+    const fmap = freeMaps.get(k);
+    if (fmap) {
+      g.freeBatches = Array.from(fmap.values())
+        .filter((b) => b.size > 0 && b.sixStars === 0)
+        .reverse();
+    }
+    return g;
+  });
   for (const g of out) {
     g.hits.reverse(); // 新 → 旧
     const gotUp = g.hits.some((h) => h.isUp === true);

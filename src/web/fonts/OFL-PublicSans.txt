@@ -1,0 +1,4 @@
+This directory contains subsetted WOFF files of **Public Sans** (https://github.com/uswds/public-sans), used locally in the web UI solely for ASCII alphanumeric and metric typography.
+
+License: SIL Open Font License, Version 1.1 (OFL-1.1) and GSA CC0-1.0 modifications (see https://github.com/uswds/public-sans/blob/main/LICENSE.md).
+The combined Modified Version is used and distributed under the terms of the SIL Open Font License, Version 1.1.

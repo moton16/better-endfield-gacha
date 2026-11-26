@@ -79,7 +79,7 @@ const analysisAccountB: AccountAnalysis = {
     globalBadges: [],
     globalLuckCounts: { ou: 0, fei: 0 },
     avgPity6: 50,
-    ratingLabel: "小有欧气",
+    ratingLabel: "《小有欧气》",
     isLucky: true,
   },
   groups: [

@@ -1,8 +1,8 @@
 import { useState } from "preact/hooks";
-import { CHAR_BEGINNER, CHAR_STANDARD } from "../../core/analysis/config.js";
+import { CHAR_BEGINNER, CHAR_JOINT, CHAR_STANDARD } from "../../core/analysis/config.js";
 import type { PoolGroup } from "../api/types.js";
-import { fmtShortDateRange, fmtTs } from "../lib/bar.js";
-import { bannerFor, MiniItemTile } from "./Avatar.js";
+import { barWidth, fmtMonthDay, fmtShortDateRange, fmtTs } from "../lib/bar.js";
+import { Avatar, bannerFor, MiniItemTile } from "./Avatar.js";
 import { HitRow } from "./HitRow.js";
 import { PendingRow } from "./PendingRow.js";
 import { WeaponTenRollRow } from "./WeaponTenRollRow.js";
@@ -36,8 +36,10 @@ export function PoolSection({
   const missingUp = !group.upKnown && group.count6 > 0 && !NO_UP_HINT_TYPES.has(group.poolType);
   const dateRange = fmtShortDateRange(group.firstTs, group.lastTs);
   const bannerUrl = bannerFor(group.poolId);
+  const isSharedScope =
+    group.kind === "char" && group.poolType !== CHAR_JOINT;
 
-  // 同批（poolId + gachaTs + isFree）6★ 计数（用于“十连双金/三金”丝带与金底）
+  // 同批（gachaTs + 付费）6★ 计数（用于“十连双金/三金”丝带与金底）
   const batchGoldCounts = new Map<string, number>();
   for (const h of group.hits) {
     if (h.isFree) continue;
@@ -46,10 +48,21 @@ export function PoolSection({
   }
   const seenMultiBatch = new Set<string>();
 
+  const showPendingRow =
+    group.pending > 0 && (group.isCurrent || !isSharedScope);
+
+  const visibleWeaponRolls = hasWeaponRolls
+    ? group.weaponTenRolls!.filter((roll) => {
+        if (showFiveStar) return roll.items.length > 0;
+        return roll.items.some((it) => it.isGift || it.rarity >= 6);
+      })
+    : [];
+
+  const freeBatches = group.freeBatches ?? [];
   const showTenRollMode = hasWeaponRolls && activeWeaponView === "ten";
   const hasAnyRecordRow = showTenRollMode
-    ? (group.weaponTenRolls?.length ?? 0) > 0
-    : group.hits.length > 0 || group.pending > 0;
+    ? visibleWeaponRolls.length > 0
+    : group.hits.length > 0 || showPendingRow || freeBatches.length > 0;
 
   return (
     <section class="pool-section" aria-label={group.title}>
@@ -63,8 +76,11 @@ export function PoolSection({
             <div class="pool-title-row">
               <h3>{group.title}</h3>
               {dateRange && <span class="pool-date">{dateRange}</span>}
-              {group.isCurrent && <span class="pill current">当前</span>}
-              {missingUp && <span class="pill warn">UP 信息缺失</span>}
+              {missingUp && (
+                <span class="pool-warn-dot" title="缺少 UP 信息，未判定歪（可补 src/core/data/up-map.json）">
+                  !
+                </span>
+              )}
             </div>
             <div class="pool-meta-row">
               <span class="meta-text">
@@ -72,7 +88,7 @@ export function PoolSection({
               </span>
               <span class="meta-pity-wrap">
                 <span class="meta-text">
-                  · 垫 <strong>{group.pending}</strong>
+                  垫 <span class="meta-pity-num">{group.pending}</span>
                 </span>
                 <button
                   type="button"
@@ -84,15 +100,33 @@ export function PoolSection({
                   ?
                 </button>
               </span>
-              {group.bigPity && (
-                <span class="meta-text">
-                  · 距大保底 <strong>{group.bigPity.remaining}</strong> 抽
-                </span>
+              {group.bigPity && group.bigPity.remaining > 0 && (
+                <span class="meta-pity-rem">大保底余 {group.bigPity.remaining}</span>
               )}
             </div>
           </div>
 
           <div class="pool-head-right">
+            <div class="pool-head-actions">
+              {hasWeaponRolls && (
+                <button
+                  type="button"
+                  class="pool-link-btn"
+                  onClick={() => setWeaponView(activeWeaponView === "ten" ? "pity" : "ten")}
+                >
+                  {activeWeaponView === "ten" ? "看水位" : "看十连"}
+                </button>
+              )}
+              <button
+                type="button"
+                class="pool-link-btn"
+                aria-expanded={expanded}
+                onClick={() => setExpanded((v) => !v)}
+              >
+                {expanded ? "收起" : "详情"}
+              </button>
+            </div>
+
             {group.up6Ids.length > 0 && (
               <div class="pool-up-icons" aria-label="本期 UP 预览">
                 {group.up6Ids.map((id, idx) => (
@@ -102,29 +136,11 @@ export function PoolSection({
                     name={group.hits.find((h) => h.itemId === id)?.itemName ?? `UP${idx + 1}`}
                     rarity={6}
                     size="xs"
+                    bare
                   />
                 ))}
               </div>
             )}
-            <div class="pool-head-actions">
-              {hasWeaponRolls && (
-                <button
-                  type="button"
-                  class="pool-detail-btn"
-                  onClick={() => setWeaponView(activeWeaponView === "ten" ? "pity" : "ten")}
-                >
-                  {activeWeaponView === "ten" ? "看水位" : "看十连"}
-                </button>
-              )}
-              <button
-                type="button"
-                class="pool-detail-btn"
-                aria-expanded={expanded}
-                onClick={() => setExpanded((v) => !v)}
-              >
-                {expanded ? "收起" : "详情"}
-              </button>
-            </div>
           </div>
         </div>
       </div>
@@ -174,23 +190,16 @@ export function PoolSection({
         {!hasAnyRecordRow ? (
           <div class="record-empty">该卡池未抽出六星</div>
         ) : showTenRollMode ? (
-          <>
-            {group.pending > 0 && (
-              <div class="weapon-pending-tip">
-                当前已垫 <strong>{group.pending}</strong> 抽未出 6★（点击右上角「看水位」可查看保底进度条）
-              </div>
-            )}
-            {group.weaponTenRolls!.map((roll, idx) => (
-              <WeaponTenRollRow
-                key={`${roll.rollIndex}-${roll.gachaTs}-${idx}`}
-                roll={roll}
-                showFiveStar={showFiveStar}
-              />
-            ))}
-          </>
+          visibleWeaponRolls.map((roll, idx) => (
+            <WeaponTenRollRow
+              key={`${roll.rollIndex}-${roll.gachaTs}-${idx}`}
+              roll={roll}
+              showFiveStar={showFiveStar}
+            />
+          ))
         ) : (
           <>
-            {(group.isCurrent || group.pending > 0) && (
+            {showPendingRow && (
               <PendingRow
                 pending={group.pending}
                 max={group.smallPityMax}
@@ -214,6 +223,41 @@ export function PoolSection({
                 />
               );
             })}
+            {freeBatches.map((fb, idx) => (
+              <div
+                class="com-record-item"
+                key={`free-${fb.gachaTs}-${idx}`}
+                title={`免费批次 ${fb.size} 抽（未出 6★） · ${fmtTs(fb.gachaTs)}`}
+              >
+                <div class="record-desc free-muted">
+                  <span class="desc-text">免费十连</span>
+                </div>
+                <div class="record-top">
+                  <Avatar name="×" rarity={0} isEmptyFree />
+                  <div class="hit-col">
+                    <div class="barwrap">
+                      <div
+                        class="bar stripe-green"
+                        style={{
+                          width: `${barWidth(fb.size, group.smallPityMax)}%`,
+                          backgroundColor: "var(--bar-green)",
+                        }}
+                        role="img"
+                        aria-label={`免费十连 ${fb.size} 抽`}
+                      >
+                        <span class="bar-num">{fb.size}</span>
+                        <span class="bar-unit">抽</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                {showFiveStar && (
+                  <div class="record-bottom">
+                    <span class="record-time">{fmtMonthDay(fb.gachaTs)}</span>
+                  </div>
+                )}
+              </div>
+            ))}
           </>
         )}
       </div>

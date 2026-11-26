@@ -14,11 +14,22 @@ export function BadgeRow({ globalSummary }: { globalSummary: AccountGlobalSummar
     <div class="badges" aria-label="欧非与特殊徽章">
       {globalBadges.map((b) => (
         <span key={b.id} class={`chip ${b.id === "double_gold" ? "green" : "pink"}`}>
-          {b.label} ×{b.count}
+          <span>{b.label}</span>
+          <span class="badge-cnt">x{b.count}</span>
         </span>
       ))}
-      {globalLuckCounts.ou > 0 && <span class="chip green">超欧 ×{globalLuckCounts.ou}</span>}
-      {globalLuckCounts.fei > 0 && <span class="chip pink">超非 ×{globalLuckCounts.fei}</span>}
+      {globalLuckCounts.ou > 0 && (
+        <span class="chip green">
+          <span>超欧</span>
+          <span class="badge-cnt">x{globalLuckCounts.ou}</span>
+        </span>
+      )}
+      {globalLuckCounts.fei > 0 && (
+        <span class="chip pink">
+          <span>超非</span>
+          <span class="badge-cnt">x{globalLuckCounts.fei}</span>
+        </span>
+      )}
     </div>
   );
 }

@@ -101,7 +101,7 @@
       "fei": 2
     },
     "avgPity6": 31.4,
-    "ratingLabel": "天选大欧皇",
+    "ratingLabel": "《天选大欧皇》",
     "isLucky": true
   },
   "groups": [
@@ -166,6 +166,7 @@
           "seqId": "298",
           "tone": "pink",
           "luck": "fei",
+          "prevPoolDiff": 12,
           "subHits5": [
             {
               "itemId": "chr_5_d",
@@ -194,7 +195,13 @@
         }
       ],
       "smallPityMax": 80,
-      "freeBatches": [],
+      "freeBatches": [
+        {
+          "gachaTs": "1760000072000",
+          "size": 5,
+          "sixStars": 0
+        }
+      ],
       "isCurrent": true,
       "firstTs": "1760000060000",
       "lastTs": "1760000092000",

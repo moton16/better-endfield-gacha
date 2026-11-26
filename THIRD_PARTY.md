@@ -17,3 +17,9 @@ Windows 便携压缩包额外内置官方原版 Node.js 运行时：
 | 组件 | 版本 | 许可证 | 来源与校验 |
 |---|---|---|---|
 | Node.js (`node/node.exe`) | `v24.15.0` (win-x64) | MIT（含其内置 V8 / libuv / OpenSSL / SQLite 等组件各自开源许可） | 下载自 `https://nodejs.org/dist/v24.15.0/`，打包前经官方 `SHASUMS256.txt` SHA256 强制校验 |
+
+## 3. 前端静态构建内嵌字体资源
+
+| 资源 | 许可证 | 说明 | 来源 |
+|---|---|---|---|
+| `Public Sans` (ASCII/数字裁剪 WOFF 子集) | SIL OFL-1.1 | `src/web/fonts/PublicSans-{Regular,Medium,Bold}.woff`，仅包含基础拉丁与数字标点字形 | https://github.com/uswds/public-sans |

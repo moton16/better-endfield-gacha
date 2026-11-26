@@ -30,29 +30,38 @@ describe("Web UI mock mode & interactions", () => {
     render(<App />);
 
     // Summary cards + rating ribbon + stamp
-    await screen.findByText("135");
+    await screen.findByText("120");
     const summary = within(screen.getByLabelText("抽卡总览"));
-    expect(summary.getByText("135")).toBeTruthy();
+    expect(summary.getByText("120")).toBeTruthy();
+    expect(summary.getByText("15")).toBeTruthy();
     expect(summary.getByText("90")).toBeTruthy();
-    expect(summary.getAllByText("45").length).toBeGreaterThanOrEqual(1);
-    expect(summary.getAllByText("40").length).toBeGreaterThanOrEqual(1);
-    expect(summary.getByText("限定角色")).toBeTruthy();
-    expect(summary.getByText("武器申领")).toBeTruthy();
-    expect(summary.getByText("常驻池")).toBeTruthy();
-    expect(summary.getByText("启程池")).toBeTruthy();
-    expect(summary.getByText("天选大欧皇")).toBeTruthy();
+    expect(summary.getByText("85")).toBeTruthy();
+    expect(summary.getByText("限定")).toBeTruthy();
+    expect(summary.getByText("复刻")).toBeTruthy();
+    expect(summary.getByText("武器")).toBeTruthy();
+    expect(summary.getByText("庆典")).toBeTruthy();
+    expect(summary.getByText("基准")).toBeTruthy();
+    expect(summary.getByText("《天选大欧皇》")).toBeTruthy();
     expect(summary.getByText("本地统计自")).toBeTruthy();
 
     // Global badges (aggregated across all tabs)
-    expect(screen.getByText("十连双金 ×1")).toBeTruthy();
-    expect(screen.getByText("九蓝一紫 ×6")).toBeTruthy();
-    expect(screen.getByText("超欧 ×2")).toBeTruthy();
-    expect(screen.getByText("超非 ×2")).toBeTruthy();
+    const badgeBox = within(screen.getByLabelText("欧非与特殊徽章"));
+    expect(badgeBox.getByText("十连双金").parentElement?.textContent).toBe("十连双金x1");
+    expect(badgeBox.getByText("九蓝一紫").parentElement?.textContent).toBe("九蓝一紫x6");
+    expect(badgeBox.getByText("超欧").parentElement?.textContent).toBe("超欧x2");
+    expect(badgeBox.getByText("超非").parentElement?.textContent).toBe("超非x2");
 
-    // Pool groups on limited tab + multi-gold & free ribbons
+    // Pool groups on special tab + multi-gold, carry pity & free batch
     expect(screen.getByText("合成特许寻访二期")).toBeTruthy();
-    expect(screen.getByText("合成重构寻访一期")).toBeTruthy();
+    expect(screen.getByText("合成特许寻访一期")).toBeTruthy();
+    expect(screen.getByText("已垫12抽")).toBeTruthy();
     expect(screen.getByText("免费十连")).toBeTruthy();
+    expect(screen.queryByText("合成重构寻访一期")).toBeNull();
+
+    // Switch to rerun tab
+    fireEvent.click(screen.getByRole("tab", { name: "复刻池" }));
+    expect(screen.getByText("合成重构寻访一期")).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: "限定池" }));
 
     // Privacy masked by default -> copy blocked with toast, then toggle to plaintext and copy
     expect(screen.getByTestId("account-nickname").textContent).toBe("***");
@@ -82,12 +91,13 @@ describe("Web UI mock mode & interactions", () => {
     expect(screen.getByText("赠")).toBeTruthy();
     expect(screen.getByLabelText("第 5 个十连")).toBeTruthy();
     expect(screen.queryByText("合成特许寻访二期")).toBeNull();
-    expect(screen.getByText("十连双金 ×1")).toBeTruthy();
+    expect(badgeBox.getByText("十连双金")).toBeTruthy();
 
     // Switch tab to standard & expand details
-    fireEvent.click(screen.getByRole("tab", { name: "常驻池" }));
+    fireEvent.click(screen.getByRole("tab", { name: "常驻" }));
     expect(screen.getByText("基础寻访")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "详情" }));
+    expect(screen.getByText("启程寻访")).toBeTruthy();
+    fireEvent.click(screen.getAllByRole("button", { name: "详情" })[0]!);
     expect(screen.getByText(/星级分布：6★ 1 · 5★ 5 · 4★ 39/)).toBeTruthy();
 
     // Switch account

@@ -41,8 +41,8 @@ export function WeaponTenRollRow({
             {gifts.length > 0
               ? "赠品领取"
               : srTotalCount > 0
-                ? `无六星 · 含 ${srTotalCount} 把五星`
-                : `共 ${roll.drawCount} 抽（无 5★/6★）`}
+                ? `含 ${srTotalCount} 把五星`
+                : `共 ${roll.drawCount} 抽`}
           </div>
         )}
       </div>

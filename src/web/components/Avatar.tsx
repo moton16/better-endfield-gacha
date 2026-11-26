@@ -13,12 +13,14 @@ export function Avatar({
   rarity,
   itemId,
   isUp,
+  isEmptyFree = false,
   size = "md",
 }: {
   name: string;
   rarity: number;
   itemId?: string;
   isUp?: boolean | null;
+  isEmptyFree?: boolean;
   size?: "md" | "lg";
 }) {
   const icon = itemId ? iconFor(itemId) : null;
@@ -33,9 +35,10 @@ export function Avatar({
       />
     );
   }
-  const initial = rarity >= 5 ? ([...name][0] ?? "?") : "?";
-  const toneCls =
-    rarity === 6
+  const initial = isEmptyFree ? "×" : rarity >= 5 ? ([...name][0] ?? "?") : "?";
+  const toneCls = isEmptyFree
+    ? "q free-x"
+    : rarity === 6
       ? isUp === false
         ? "r6 off-tone"
         : "r6"
@@ -57,6 +60,7 @@ export function MiniItemTile({
   isGift = false,
   isUp = null,
   size = "sm",
+  bare = false,
 }: {
   itemId?: string;
   name: string;
@@ -65,10 +69,11 @@ export function MiniItemTile({
   isGift?: boolean;
   isUp?: boolean | null;
   size?: "xs" | "sm" | "md";
+  bare?: boolean;
 }) {
   const icon = itemId ? iconFor(itemId) : null;
   const initial = [...(name || itemId || "?")][0] ?? "?";
-  const rankCls = isGift || rarity >= 6 ? "tile-ssr" : "tile-sr";
+  const rankCls = bare ? "tile-neutral" : isGift || rarity >= 6 ? "tile-ssr" : "tile-sr";
   const sizeCls = `tile-${size}`;
   const titleText = `${name || itemId}${count && count > 1 ? ` ×${count}` : ""}${isGift ? "（赠品）" : isUp === false ? "（歪）" : ""}`;
 

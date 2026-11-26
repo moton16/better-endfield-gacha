@@ -1,11 +1,4 @@
-import type { Tab } from "../api/types.js";
-
-const TABS: ReadonlyArray<{ id: Tab; label: string }> = [
-  { id: "limited", label: "限定池" },
-  { id: "weapon", label: "武器池" },
-  { id: "standard", label: "常驻池" },
-  { id: "beginner", label: "启程池" },
-];
+import { UI_TAB_META, type UiTab } from "../lib/bar.js";
 
 export function PoolTabs({
   active,
@@ -13,23 +6,23 @@ export function PoolTabs({
   showFiveStar,
   onToggleFiveStar,
 }: {
-  active: Tab;
-  onChange: (tab: Tab) => void;
+  active: UiTab;
+  onChange: (tab: UiTab) => void;
   showFiveStar: boolean;
   onToggleFiveStar: () => void;
 }) {
   return (
     <div class="record-selector">
       <div class="tabs" role="tablist" aria-label="卡池分类">
-        {TABS.map((t) => (
+        {UI_TAB_META.map((t) => (
           <button
-            key={t.id}
+            key={t.tab}
             type="button"
             role="tab"
-            aria-selected={active === t.id}
-            onClick={() => onChange(t.id)}
+            aria-selected={active === t.tab}
+            onClick={() => onChange(t.tab)}
           >
-            {t.label}
+            {t.tabLabel}
           </button>
         ))}
       </div>

@@ -117,8 +117,26 @@ describe("analysis engine (W1)", () => {
       tone: "pink",
       luck: "fei", // 80 >= ceil(80*0.925)=74
       isUp: true,
+      prevPoolDiff: 50,
     });
     expect(groupB.pending).toBe(0);
+  });
+
+  it("1b. 免费十连无 6★ 时写入 freeBatches（不含出金批次）", () => {
+    const records = [
+      ...mkMany(1, 10, 4, { poolId: "sp_free", free: true, ts: 1000 }),
+      ...mkMany(11, 5, 4, { poolId: "sp_free", free: true, ts: 2000 }),
+      mk({ n: 16, rarity: 6, poolId: "sp_free", free: true, id: "U_F", ts: 2000 }),
+    ];
+    const res = analyzeAccount({
+      accountKey: ACC_KEY,
+      records,
+      pools: [pool("sp_free", ["U_F"])],
+      rerunChar: [],
+      rerunWeapon: [],
+      now: 1,
+    });
+    expect(res.groups[0]!.freeBatches).toEqual([{ gachaTs: "1000", size: 10, sixStars: 0 }]);
   });
 
   it("2. 免费抽不计入且不重置后续计数；免费 6★ 取当时计数、luck 为 null", () => {

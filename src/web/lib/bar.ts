@@ -1,16 +1,106 @@
 import { tone } from "../../core/analysis/common.js";
+import { CHAR_JOINT, CHAR_RERUN } from "../../core/analysis/config.js";
 import type {
   AccountAnalysis,
   AccountGlobalSummary,
   BadgeCount,
   Luck,
+  PoolGroup,
   Tab,
   Tone,
 } from "../../core/analysis/types.js";
 
+export type UiTab = "special" | "rerun" | "weapon" | "joint" | "standard";
+
+export interface UiStatCard {
+  tab: UiTab;
+  label: string;
+  tabLabel: string;
+  total: number;
+  count6: number;
+  offBanner: number;
+  upCount: number;
+  rightLabel: string;
+  rightValue: number | null;
+  showMiss: boolean;
+}
+
+export const UI_TAB_META: ReadonlyArray<{
+  tab: UiTab;
+  label: string;
+  tabLabel: string;
+  showMiss: boolean;
+}> = [
+  { tab: "special", label: "限定", tabLabel: "限定池", showMiss: true },
+  { tab: "rerun", label: "复刻", tabLabel: "复刻池", showMiss: true },
+  { tab: "weapon", label: "武器", tabLabel: "武器池", showMiss: true },
+  { tab: "joint", label: "庆典", tabLabel: "庆典池", showMiss: false },
+  { tab: "standard", label: "基准", tabLabel: "常驻", showMiss: false },
+];
+
+export function groupMatchesUiTab(group: PoolGroup, uiTab: UiTab): boolean {
+  switch (uiTab) {
+    case "special":
+      return group.tab === "limited" && group.poolType !== CHAR_RERUN && group.poolType !== CHAR_JOINT;
+    case "rerun":
+      return group.tab === "limited" && group.poolType === CHAR_RERUN;
+    case "weapon":
+      return group.tab === "weapon";
+    case "joint":
+      return group.tab === "limited" && group.poolType === CHAR_JOINT;
+    case "standard":
+      return group.tab === "standard" || group.tab === "beginner";
+  }
+}
+
+export function deriveUiCards(analysis: AccountAnalysis): UiStatCard[] {
+  const round1 = (n: number) => Math.round(n * 10) / 10;
+  const hasGroups = analysis.groups.length > 0;
+
+  return UI_TAB_META.map((meta) => {
+    const gs = analysis.groups.filter((g) => groupMatchesUiTab(g, meta.tab) && g.total > 0);
+    if (!hasGroups) {
+      if (meta.tab === "special") {
+        const ov = analysis.overview.limited;
+        return { ...meta, total: ov.total, count6: ov.count6, offBanner: ov.offBanner, upCount: ov.upCount, rightLabel: "UP平均", rightValue: ov.avgCostPerUp, showMiss: true };
+      }
+      if (meta.tab === "weapon") {
+        const ov = analysis.overview.weapon;
+        return { ...meta, total: ov.total, count6: ov.count6, offBanner: ov.offBanner, upCount: ov.upCount, rightLabel: "UP平均", rightValue: ov.avgCostPerUp, showMiss: true };
+      }
+      if (meta.tab === "standard") {
+        const st = analysis.overview.standard;
+        const bg = analysis.overview.beginner;
+        return { ...meta, total: st.total + bg.total, count6: st.count6 + bg.count6, offBanner: 0, upCount: 0, rightLabel: "六星平均", rightValue: st.avgPity6 ?? bg.avgPity6, showMiss: false };
+      }
+      return { ...meta, total: 0, count6: 0, offBanner: 0, upCount: 0, rightLabel: meta.showMiss ? "UP平均" : "六星平均", rightValue: null };
+    }
+
+    const total = gs.reduce((s, g) => s + g.total, 0);
+    const hits = gs.flatMap((g) => g.hits);
+    const offBanner = hits.filter((h) => h.isUp === false).length;
+    const upCount = hits.filter((h) => h.isUp === true).length;
+    const paidHits = hits.filter((h) => !h.isFree);
+    const avgPity6 = paidHits.length ? round1(paidHits.reduce((s, h) => s + h.pity, 0) / paidHits.length) : null;
+    const withUp = gs.filter((g) => g.hits.some((h) => h.isUp === true));
+    const upsInWithUp = withUp.reduce((s, g) => s + g.hits.filter((h) => h.isUp === true).length, 0);
+    const avgCostPerUp = upsInWithUp > 0 ? round1(withUp.reduce((s, g) => s + g.paid, 0) / upsInWithUp) : null;
+
+    return {
+      ...meta,
+      total,
+      count6: hits.length,
+      offBanner,
+      upCount,
+      rightLabel: meta.showMiss ? "UP平均" : "六星平均",
+      rightValue: meta.showMiss ? avgCostPerUp : avgPity6,
+    };
+  });
+}
+
 /**
  * 柱宽百分比：按视觉 70 抽封顶缩放（角色 70 抽铺满，武器池保底 40 保持按 40），
- * 下限 14%（保证放得下“N 抽”文字），上限 100%。
+ * 下限 14%，上限 100%（实际短条由 CSS min-width: 71px 保底）。
  */
 export function barWidth(pity: number, max: number): number {
   if (max <= 0) return 14;
@@ -78,12 +168,13 @@ export function fmtShortDateRange(firstTs: string, lastTs: string): string {
   return `${a.getFullYear()}.${pad(a.getMonth() + 1)}.${pad(a.getDate())}~${b.getFullYear()}.${pad(b.getMonth() + 1)}.${pad(b.getDate())}`;
 }
 
-/** 邮戳日期格式：YYYY年M月D日 */
+/** 邮戳日期格式：YYYY年MM月DD日 */
 export function fmtStatStartDate(raw: string | null | undefined): string {
   const ms = toMs(raw);
   if (ms === null) return "暂无记录";
   const d = new Date(ms);
-  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+  const pad = (v: number) => String(v).padStart(2, "0");
+  return `${d.getFullYear()}年${pad(d.getMonth() + 1)}月${pad(d.getDate())}日`;
 }
 
 export function fmtRelativeTime(ms: number, now = Date.now()): string {
@@ -145,31 +236,31 @@ export function deriveGlobalSummary(analysis: AccountAnalysis): AccountGlobalSum
     }
   }
 
-  let ratingLabel = "蓄势待发";
+  let ratingLabel = "《蓄势待发》";
   let isLucky = false;
   if (paidCount === 0) {
-    if (totalDraws === 0) ratingLabel = "暂未寻访";
+    if (totalDraws === 0) ratingLabel = "《持玉观望的屯屯鼠》";
     else if (total6 > 0) {
-      ratingLabel = "白嫖出金";
+      ratingLabel = "《白嫖出金》";
       isLucky = true;
     }
   } else {
     const r = ratioSum / paidCount;
     if (r <= 0.4) {
-      ratingLabel = "宇宙无敌大欧皇";
+      ratingLabel = "《宇宙无敌大欧皇》";
       isLucky = true;
     } else if (r <= 0.55) {
-      ratingLabel = "天选大欧皇";
+      ratingLabel = "《天选大欧皇》";
       isLucky = true;
     } else if (r <= 0.68) {
-      ratingLabel = "小有欧气";
+      ratingLabel = "《小有欧气》";
       isLucky = true;
     } else if (r <= 0.78) {
-      ratingLabel = "中规中矩";
+      ratingLabel = "《中规中矩》";
     } else if (r <= 0.88) {
-      ratingLabel = "略显非酋";
+      ratingLabel = "《略显非酋》";
     } else {
-      ratingLabel = "终末地大非酋";
+      ratingLabel = "《终末地大非酋》";
     }
   }
 
