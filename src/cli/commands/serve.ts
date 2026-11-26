@@ -2,6 +2,7 @@ import { analyzeAccount } from "../../core/analysis/index.js";
 import { GachaStore } from "../../core/storage/store.js";
 import { createApp } from "../../server/index.js";
 import { openWindow } from "../../server/open-window.js";
+import { resolveWebDir } from "../../server/web-dir.js";
 import type { Command } from "../types.js";
 
 export const serve: Command = {
@@ -25,6 +26,7 @@ export const serve: Command = {
     const app = createApp({
       dataDir,
       port,
+      webDir: resolveWebDir(),
       deps: {
         store,
         ...(extraDirs.length > 0 ? { cacheDiscover: { extraDirs } } : {}),

@@ -4,11 +4,13 @@ import path from "node:path";
 import { analyzeAccount } from "../core/analysis/index.js";
 import type { DiscoverOptions } from "../core/cache/locations.js";
 import { GachaStore } from "../core/storage/store.js";
+import { VERSION } from "../version.js";
 import { HttpError, readBody, Router, sendJson, type Ctx } from "./http.js";
 import { JobManager } from "./jobs.js";
 import { registerRoutes } from "./routes/index.js";
 import { applySecurityHeaders, checkApi, checkHost, newKey } from "./security.js";
 import { serveStatic } from "./static.js";
+import { resolveWebDir } from "./web-dir.js";
 
 export interface AppDeps {
   store: GachaStore;
@@ -40,7 +42,7 @@ export function createApp(o: AppOptions) {
     fetch: o.deps?.fetch,
     sleep: o.deps?.sleep,
     cacheDiscover: o.deps?.cacheDiscover,
-    version: o.deps?.version ?? "0.1.0-dev",
+    version: o.deps?.version ?? VERSION,
     analysis:
       o.deps?.analysis ??
       ((accountKey: string) =>
@@ -55,7 +57,7 @@ export function createApp(o: AppOptions) {
 
   const router = new Router();
   registerRoutes(router, deps);
-  const webDir = path.resolve(o.webDir ?? "dist-web");
+  const webDir = o.webDir ? path.resolve(o.webDir) : resolveWebDir();
   let port = 0;
 
   const server = http.createServer(async (req, res) => {

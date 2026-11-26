@@ -4,6 +4,7 @@ dist/
 dist-web/
 *.tsbuildinfo
 coverage/
+release/
 
 # Docs — 默认忽略本地过程文档，仅白名单放行常驻开发者文档
 docs/*

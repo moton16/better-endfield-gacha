@@ -16,6 +16,7 @@ import { buildAccountKey, type AccountRow, type GachaRecord } from "../src/core/
 import { HttpError } from "../src/server/http.js";
 import { createApp } from "../src/server/index.js";
 import { JobManager } from "../src/server/jobs.js";
+import { VERSION } from "../src/version.js";
 import lcxSample from "./fixtures/io/lcx-sample.json" with { type: "json" };
 import analysisFixture from "./fixtures/server/analysis.json" with { type: "json" };
 import accountsFixture from "./fixtures/server/accounts.json" with { type: "json" };
@@ -171,7 +172,7 @@ describe("W3 local HTTP server", () => {
 
     const rOk = await fetch(`${base}/api/health`, { headers: { "X-BEG-Key": app.key } });
     expect(rOk.status).toBe(200);
-    expect(await rOk.json()).toEqual({ ok: true, version: "0.1.0-dev" });
+    expect(await rOk.json()).toEqual({ ok: true, version: VERSION });
     expect(rOk.headers.get("access-control-allow-origin")).toBeNull();
     expect(rOk.headers.get("access-control-allow-credentials")).toBeNull();
   });

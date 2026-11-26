@@ -1,0 +1,32 @@
+name: ci
+
+on:
+  push:
+    branches: [main, "feat/**"]
+    tags: ["v*"]
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+        env:
+          BEG_RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') && '1' || '0' }}
+      - run: pnpm build
+      - name: Verify build artifacts
+        run: node -e "const fs=require('fs'); for (const p of ['dist/cli/index.js','dist/core/data/up-map.json','dist-web/index.html']) { if (!fs.existsSync(p)) { console.error('Missing build artifact:', p); process.exit(1); } }"

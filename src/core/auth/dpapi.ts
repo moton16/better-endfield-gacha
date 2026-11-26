@@ -1,5 +1,6 @@
 /**
- * Windows DPAPI（CurrentUser）加解密。通过 pwsh 调 .NET ProtectedData；
+ * Windows DPAPI（CurrentUser）加解密。优先通过 pwsh 7 调 .NET ProtectedData，
+ * 若未安装 pwsh（ENOENT），则自动回退到 Windows 自带的 PowerShell 5.1（powershell.exe）。
  * 明文只经 stdin（base64）传递，绝不出现在命令行参数里。
  * 局限：同一 Windows 用户下的任何进程都能解密——这是 DPAPI 的威胁模型，README 需明示。
  */
@@ -11,6 +12,8 @@ export interface SecretCrypto {
 }
 
 const SCRIPT = `
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.Security
 $mode = [Console]::In.ReadLine()
 $b = [Convert]::FromBase64String([Console]::In.ReadLine())
 if ($mode -eq 'e') { $r = [Security.Cryptography.ProtectedData]::Protect($b, $null, 'CurrentUser') }
@@ -18,15 +21,30 @@ else { $r = [Security.Cryptography.ProtectedData]::Unprotect($b, $null, 'Current
 [Console]::Out.Write([Convert]::ToBase64String($r))
 `;
 
+function candidates(): string[] {
+  return ["pwsh", "powershell"];
+}
+
 function run(mode: "e" | "d", payloadB64: string): string {
   if (process.platform !== "win32") throw new Error("DPAPI 仅支持 Windows");
-  const r = spawnSync("pwsh", ["-NoProfile", "-NonInteractive", "-Command", SCRIPT], {
-    input: `${mode}\n${payloadB64}\n`,
-    encoding: "utf8",
-    windowsHide: true,
-  });
-  if (r.status !== 0 || !r.stdout) throw new Error(`DPAPI 调用失败（需要 pwsh 7）：${(r.stderr || "").split("\n")[0] ?? ""}`);
-  return r.stdout.trim();
+  let lastErr = "";
+  for (const exe of candidates()) {
+    const r = spawnSync(exe, ["-NoProfile", "-NonInteractive", "-Command", SCRIPT], {
+      input: `${mode}\n${payloadB64}\n`,
+      encoding: "utf8",
+      windowsHide: true,
+    });
+    if (r.error) {
+      const code = (r.error as NodeJS.ErrnoException).code;
+      lastErr = r.error.message;
+      if (code === "ENOENT") continue;
+      break;
+    }
+    if (r.status === 0 && r.stdout) return r.stdout.trim();
+    lastErr = (r.stderr || "").split("\n")[0]?.trim() || `exit=${String(r.status)}`;
+    break;
+  }
+  throw new Error(`DPAPI 调用失败：${lastErr}`);
 }
 
 export const dpapi: SecretCrypto = {
