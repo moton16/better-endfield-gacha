@@ -9,7 +9,7 @@
 
 - **定位**：终末地抽卡凭据提取 + 记录拉取/本地持久化/分析。双模：
   - **路线 A**（已实现，M1）：Windows PC 客户端，只读解析本机 Chromium 缓存取 `u8_token`，零绑定。
-  - **路线 B**（未实现，M2）：鹰角通行证 `hytoken → grant → binding_list → u8_token_by_uid`，跨平台、不开游戏。
+  - **路线 B**（已实现，M2/W0）：鹰角通行证 `hytoken → grant → binding_list → u8_token_by_uid`，跨平台、不开游戏（扫码登录三接口待真机实测）。
 - **非目标**：不做内存注入（AntiCheatExpert 风险）、不做抓包/中间人、不绑定 B 站账号直登（无公开可行路径）、不内置第三方 Wiki 图片（版权风险，头像后续以仓库内置资源 + 独立工作流处理）。
 - **设计红线**（改动前必读）：
   1. **凭据永不外泄**：token/UID/昵称/抽卡记录不进仓库、日志、测试夹具、终端输出。统一用 `redact()` 的 `<LEN, SHA256_PREFIX>`；CLI 账号键默认脱敏（`--show-ids` 才明文）。
@@ -28,15 +28,16 @@
 │   ├── core/
 │   │   ├── cache/        # 路线 A：blockfile 解析、simplecache(前瞻)、目录发现、凭据提取
 │   │   ├── api/          # ef-webview 客户端 + 响应归一化
-│   │   ├── auth/         # 凭据→账号反查（路线 A）；路线 B 登录/换票（待建）
+│   │   ├── auth/         # 路线 A 反查（role.ts）；路线 B 通行证/DPAPI/保险库（passport.ts/dpapi.ts/vault.ts）
 │   │   ├── storage/      # SQLite（node:sqlite）
 │   │   ├── sync/         # 全卡池拉取与增量入库
 │   │   ├── route-a.ts    # 路线 A 编排
+│   │   ├── route-b.ts    # 路线 B 编排
 │   │   ├── redact.ts     # 脱敏工具
 │   │   └── types.ts
-│   ├── cli/index.ts      # 命令行入口（scan/link/sync/accounts/stats/export）
+│   ├── cli/              # 命令注册表（index.ts / context.ts / util.ts / commands/*）
 │   └── web/              # （待建）Preact + Vite 前端，小黑盒风格
-├── tests/                # vitest；helpers/ 含合成 blockfile 构造器与合成 webview 服务端
+├── tests/                # vitest；helpers/ 含合成 blockfile、ef-server 与 fake-passport
 └── docs/                 # DEVELOPER.md（本文）+ dev_changelog/；其余被 gitignore
 ```
 
@@ -70,12 +71,15 @@ CLI / (未来)本地 HTTP + Web UI
 | `sync/sync.ts` | 全池拉取 | `syncAccount` | 角色池 = meta ∪ 5 枚举（meta 未提供的池失败记为 skipped）；武器先 `/weapon/pool` 再逐池，重构池单池失败回退 `pool_ids` 合并 |
 | `storage/store.ts` | SQLite | `GachaStore` | 主键 `(account_key, feed, seq_id)`；永不删除记录（90 天窗口之外的旧数据靠本地保留） |
 | `auth/role.ts` | u8 token 反查角色 | `queryRoleList` | ⚠️ 返回的 `uid` 与路线 B `bindingList[].uid` 是否同值 **未实测**，若不同则 A/B 同一角色会落成两个账号键，需在 M2 做关联迁移 |
+| `auth/passport.ts` | 鹰角通行证接口与扫码登录 | `grantOAuth`, `listBindings`, `u8TokenByUid`, `parseHyTokenInput` | 业务状态字段严格为 `status === 0`（不是 `code`）；扫码三接口来自社区协议描述 **未实测**；错误消息经 `scrubUrl` 抹掉 token |
+| `auth/dpapi.ts`、`auth/vault.ts` | 通行证加密保险库 | `dpapi`, `Vault` | Windows 下用 `pwsh` 调 DPAPI（`CurrentUser`），明文走 stdin base64 传递；`list()` 不返回 `cipher`；损坏或版本不匹配文件视为空 |
+| `route-b.ts` | 路线 B 编排 | `inspectPassport`, `syncFromPassport` | 换票必须传外层 `binding.uid`（非 `roleId`）；每次换票按需重 grant；单绑定失败只写 `item.error` 不中断其它绑定；多角色时 `u8_token` 只对应默认角色 |
 
 ## 5. 数据布局与安全边界
 
-- 数据目录：`--data-dir` / `BEG_DATA_DIR` / `./data`（`.gitignore` 已忽略）。内含 `gacha.sqlite`（WAL）。**默认不放系统盘用户目录**。
+- 数据目录：`--data-dir` / `BEG_DATA_DIR` / `./data`（`.gitignore` 已忽略）。内含 `gacha.sqlite`（WAL）与可选 `vault.json`。**默认不放系统盘用户目录**。
 - 表：`accounts`、`records`、`pools`（`/api/content` 缓存，含 UP 六星 id）、`rerun_counts`、`meta(schema_version)`。
-- 未来路线 B 的通行证 token 必须用 Windows DPAPI 加密落盘（待实现），并提供“清除会话”入口；README 需写明风险。
+- **`vault.json` 威胁模型**：路线 B 的 `hytoken` 使用 Windows DPAPI（`CurrentUser`）加密保存在 `<dataDir>/vault.json`。DPAPI 仅能防范离线文件泄露或同机其他 Windows 账户读取；**同一 Windows 登录用户下的任意进程都能调用 `ProtectedData.Unprotect` 解密**。因此不提供 CLI 参数明文传参（仅 `--token-stdin` / `--qr` / `BEG_HYTOKEN`），提供 `beg logout` 清除本地文件，并在 `README.md` 明示需到 `user.hypergryph.com` 手动踢出服务端会话。
 - 不可信输入：缓存文件内容（长度/地址均做边界检查，异常条目跳过）、服务端 JSON（逐字段 `str/num` 归一化）。
 - 已实证事实（2026-11-25 本机 B 服）：QtWebEngine 缓存 42/42 条目哈希通过；`u8_token` 328 字符；跨会话 23h+ 仍可用；`channel=2&subChannel=2` 出现在页面 URL。
 
