@@ -12,6 +12,7 @@ import { SummaryCards } from "./components/SummaryCards.js";
 import { SyncDialog } from "./components/SyncDialog.js";
 import { Toast } from "./components/Toast.js";
 import {
+  deriveCostSummary,
   deriveGlobalSummary,
   deriveUiCards,
   groupMatchesUiTab,
@@ -175,6 +176,10 @@ export function App() {
     () => (analysis ? deriveGlobalSummary(analysis) : null),
     [analysis],
   );
+  const costSummary = useMemo(
+    () => (analysis ? deriveCostSummary(analysis) : null),
+    [analysis],
+  );
   const uiCards = useMemo(
     () => (analysis ? deriveUiCards(analysis) : []),
     [analysis],
@@ -196,6 +201,7 @@ export function App() {
         onOpenAvatarPicker={() => setDialog("avatar")}
         mock={mock}
         globalSummary={globalSummary}
+        costSummary={costSummary}
         onToast={showToast}
       />
 

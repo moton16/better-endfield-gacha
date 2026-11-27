@@ -173,6 +173,10 @@
     "item_char_equip_supply_1",
     "item_char_equip_supply_2"
   ],
+  "currency": [
+    "item_diamond",
+    "item_gachabyproducts_weapongold"
+  ],
   "avatars": [
     {
       "id": "item_user_avatar_activity_1",

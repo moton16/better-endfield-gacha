@@ -28,14 +28,35 @@ afterEach(() => {
 });
 
 describe("Web UI mock mode & interactions", () => {
-  it("renders summary cards, global badges, rating ribbon, tabs, show-5 toggle, weapon ten-rolls, and privacy mask", async () => {
+  it("renders summary cards, global badges, rating ribbon, cost strip, tabs, show-5 toggle, unified weapon pity view, and privacy mask", async () => {
     const writeText = vi.fn(async () => {});
     vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
 
     render(<App />);
 
-    // Summary cards + rating ribbon + stamp
+    // Summary cards + rating ribbon + stamp + cost strip
     await screen.findByText("120");
+    const strip = within(screen.getByLabelText("全账号抽卡汇总"));
+    expect(strip.getByText("总抽取")).toBeTruthy();
+    expect(strip.getByText("总消耗")).toBeTruthy();
+    expect(strip.getByText("嵌晶玉")).toBeTruthy();
+    expect(strip.getByText("武库配额")).toBeTruthy();
+
+    // Load currency icons in manifest -> strip replaces fallback text with currency <img> icons
+    setMediaManifestForTest({
+      currency: ["item_diamond", "item_gachabyproducts_weapongold"],
+    });
+    await waitFor(() => {
+      expect(strip.getByAltText("嵌晶玉").getAttribute("src")).toBe(
+        "./media/currency/item_diamond.webp",
+      );
+      expect(strip.getByAltText("武库配额").getAttribute("src")).toBe(
+        "./media/currency/item_gachabyproducts_weapongold.webp",
+      );
+    });
+    expect(strip.queryByText("嵌晶玉")).toBeNull();
+    expect(strip.queryByText("武库配额")).toBeNull();
+
     const summary = within(screen.getByLabelText("抽卡总览"));
     expect(summary.getByText("120")).toBeTruthy();
     expect(summary.getByText("15")).toBeTruthy();
@@ -48,6 +69,7 @@ describe("Web UI mock mode & interactions", () => {
     expect(summary.getByText("基准")).toBeTruthy();
     expect(summary.getByText("《天选大欧皇》")).toBeTruthy();
     expect(summary.getByText("本地统计自")).toBeTruthy();
+    expect(summary.getByLabelText("切换总览卡页")).toBeTruthy();
 
     // Global badges (aggregated across all tabs)
     const badgeBox = within(screen.getByLabelText("欧非与特殊徽章"));
@@ -89,12 +111,14 @@ describe("Web UI mock mode & interactions", () => {
     expect(localStorage.getItem("beg.show5")).toBe("1");
     expect(screen.getAllByLabelText("同周期五星").length).toBeGreaterThanOrEqual(1);
 
-    // Switch tab to weapon -> ten-roll rows + gift badge; global badges stay visible
+    // Switch tab to weapon -> unified pity-bar rows (no 看十连/看水位 mode toggle); global badges stay visible
     fireEvent.click(screen.getByRole("tab", { name: "武器池" }));
     expect(screen.getByText("合成武器申领箱二")).toBeTruthy();
     expect(screen.getByText("合成武器申领箱一")).toBeTruthy();
-    expect(screen.getByText("赠")).toBeTruthy();
-    expect(screen.getByLabelText("第 5 个十连")).toBeTruthy();
+    expect(screen.getByRole("img", { name: /武器01 18 抽/ })).toBeTruthy();
+    expect(screen.getByRole("img", { name: /武器03 37 抽/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /看水位|看十连/ })).toBeNull();
+    expect(screen.queryByLabelText(/第 \d+ 个十连/)).toBeNull();
     expect(screen.queryByText("合成特许寻访二期")).toBeNull();
     expect(badgeBox.getByText("十连双金")).toBeTruthy();
 

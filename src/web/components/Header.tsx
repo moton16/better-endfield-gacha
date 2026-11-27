@@ -1,7 +1,7 @@
 import { useState } from "preact/hooks";
 import type { AccountGlobalSummary, AccountSummary } from "../api/types.js";
-import { maskName } from "../lib/bar.js";
-import { resolveAccountAvatarUrl, useMediaManifest } from "../lib/media.js";
+import { fmtCompactCost, maskName, type UiCostSummary } from "../lib/bar.js";
+import { currencyIconFor, resolveAccountAvatarUrl, useMediaManifest } from "../lib/media.js";
 
 const AVATAR_KEY_PREFIX = "beg.avatar.";
 
@@ -39,6 +39,7 @@ export function Header({
   onOpenAvatarPicker,
   mock,
   globalSummary,
+  costSummary,
   onToast,
 }: {
   accounts: AccountSummary[];
@@ -51,18 +52,26 @@ export function Header({
   onOpenAvatarPicker: () => void;
   mock: boolean;
   globalSummary?: AccountGlobalSummary | null;
+  costSummary?: UiCostSummary | null;
   onToast?: (msg: string) => void;
 }) {
   useMediaManifest();
   const current = accounts.find((a) => a.accountKey === accountKey);
   const totalDraws = globalSummary?.totalDraws ?? current?.counts.draws ?? 0;
-  const total6 = globalSummary?.total6 ?? 0;
-  const totalFree = globalSummary?.totalFree ?? 0;
+  const charCost = costSummary?.charCost ?? 0;
+  const weaponCost = costSummary?.weaponCost ?? 0;
   const uidDisplay = current ? (privacy ? current.maskedKey : current.accountKey.slice(-10)) : "";
   const rawAvatar = current ? (current.avatar || readStoredAvatar(current.accountKey)) : "";
   const avatarUrl = !privacy && rawAvatar ? resolveAccountAvatarUrl(rawAvatar) : null;
   const [failedAvatarUrl, setFailedAvatarUrl] = useState<string | null>(null);
   const effectiveAvatarUrl = avatarUrl && avatarUrl !== failedAvatarUrl ? avatarUrl : null;
+  const rawDiamondUrl = currencyIconFor("item_diamond");
+  const rawArsenalUrl = currencyIconFor("item_gachabyproducts_weapongold");
+  const [failedUrls, setFailedUrls] = useState<string[]>([]);
+  const diamondUrl = rawDiamondUrl && !failedUrls.includes(rawDiamondUrl) ? rawDiamondUrl : null;
+  const arsenalUrl = rawArsenalUrl && !failedUrls.includes(rawArsenalUrl) ? rawArsenalUrl : null;
+  const markFailed = (url: string) =>
+    setFailedUrls((prev) => (prev.includes(url) ? prev : [...prev, url]));
 
   async function handleCopyId() {
     if (!current) return;
@@ -215,24 +224,33 @@ export function Header({
               <span class="strip-label">总抽取</span>
               <span class="strip-val">{totalDraws}</span>
             </div>
-            <div class="strip-block">
-              <span class="strip-label">累计</span>
-              <span class="strip-item">
-                <svg class="strip-icon" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
-                  <path
-                    d="M8 1.2l2 4.2 4.6.7-3.3 3.2.8 4.6L8 11.7 3.9 13.9l.8-4.6L1.4 6.1 6 5.4 8 1.2z"
-                    fill="#f59e0b"
+            <div class="strip-block strip-cost-block">
+              <span class="strip-label">总消耗</span>
+              <span class="strip-item" title={`嵌晶玉消耗估算：${charCost}`}>
+                {diamondUrl ? (
+                  <img
+                    class="strip-currency-icon"
+                    src={diamondUrl}
+                    alt="嵌晶玉"
+                    onError={() => markFailed(diamondUrl)}
                   />
-                </svg>
-                <span class="strip-val">{total6}</span>
+                ) : (
+                  <span class="strip-label-sm">嵌晶玉</span>
+                )}
+                <span class="strip-val">{fmtCompactCost(charCost)}</span>
               </span>
-              <span class="strip-item">
-                <svg class="strip-icon" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
-                  <rect x="1.5" y="4" width="13" height="8" rx="1.5" fill="#27e29b" />
-                  <circle cx="8" cy="8" r="1.9" fill="#14191e" />
-                </svg>
-                <span class="strip-label-sm">免费</span>
-                <span class="strip-val">{totalFree}</span>
+              <span class="strip-item" title={`武库配额消耗估算：${weaponCost}`}>
+                {arsenalUrl ? (
+                  <img
+                    class="strip-currency-icon"
+                    src={arsenalUrl}
+                    alt="武库配额"
+                    onError={() => markFailed(arsenalUrl)}
+                  />
+                ) : (
+                  <span class="strip-label-sm">武库配额</span>
+                )}
+                <span class="strip-val">{fmtCompactCost(weaponCost)}</span>
               </span>
             </div>
           </div>

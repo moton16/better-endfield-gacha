@@ -1,7 +1,7 @@
 import { useState } from "preact/hooks";
 import { iconFor, useMediaManifest } from "../lib/media.js";
 
-export { bannerFor, iconFor } from "../lib/media.js";
+export { bannerFor, currencyIconFor, iconFor } from "../lib/media.js";
 
 export function Avatar({
   name,

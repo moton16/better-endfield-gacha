@@ -67,3 +67,16 @@
   - Windows 11 本机实机桌面包启动与退出冒烟（临时目录解压运行 `better-endfield-gacha.exe`）：成功拉起无 `\\?\` 前缀的 `node.exe`、监听回环端口并与 WebView2 建立连接、初始化 `gacha.sqlite`、显示 `Better Endfield Gacha` 主窗口，发送 `WM_CLOSE` 后退出码 `0`、子进程退出且 `gacha.sqlite-wal` 截断为 `0` 字节。
 - **未覆盖 / 后续节点**：
   - 干净 Windows 实体机（未预装 Node.js / PowerShell 7 / WebView2）端到端测试及 NSIS 安装包实际安装/卸载流程待后续在独立环境手工完成。
+
+### [UI-V4] — moton16,2026-11-27,Antigravity — 顶部嵌晶玉/武库配额汇总条、评分麦穗与三卡横滑修正、池头插图居中与武器池统一水位视图
+> **涵盖提交**：本次返工直接落地并通过测试与提交入库。
+
+- **顶部汇总与总览卡布局重构（`src/web/lib/bar.ts`、`media.ts`、`Header.tsx`、`SummaryCards.tsx`、`components.css`）**：
+  - `src/web/public/media/currency/` 接入 `item_diamond.webp`（嵌晶玉）与 `item_gachabyproducts_weapongold.webp`（武库配额）2 枚货币图标并登记至 `manifest.json`（内置资产总计增至 243 个 WebP），`media.ts` 新增 `currency` 分类与 `currencyIconFor`（`Avatar.tsx` 同步重导出），`NOTICE.md` 同步声明 `currency/` 归属。
+  - `bar.ts` 新增 `deriveCostSummary` 与 `fmtCompactCost`（角色付费抽数 `× 500` 折算嵌晶玉口径，武器付费抽数 `× 198` 折算武库配额口径）；`Header.tsx` 改为 `总抽取 | 总消耗 [嵌晶玉图标] xxx [武库配额图标] xxx`（无包/加载失败自动回退「嵌晶玉 / 武库配额」文本）。
+  - `SummaryCards.tsx` 将评分丝带两侧 `<svg>` 麦穗重置为对称独立谷粒弧线（`LaurelSprig`），移除 `.stat-card` 固定宽度及造成内宽膨胀的 `transform: scale(0.5)` 副标签，改为 `calc((100% - 12px) / 3)` + `min-width: 0` 确保任意 360px–480px 视口严格每页显示 3 卡不裁切，并补充滚轮横滑、指针拖拽、Tab 联动滚动及底部微缩翻页器展示后两卡（庆典 / 基准）。
+- **卡池头图居中与武器视图统一（`PoolSection.tsx`、`WeaponTenRollRow.tsx` 移除、`components.css`）**：
+  - `PoolSection.tsx` 调整为将卡池主 UP 角色头图（`chars/*.webp`）与武器图（`weapons/*.webp`）经 `.pool-head-art-box` 居中嵌入右半渐变区域（`left: 42%; right: 36px`）并辅以水平渐隐遮罩，多 UP 庆典池回退横幅并收敛右边距避免遮挡「详情」，修复宽幅横幅缩放导致人物右偏与裁剪问题。
+  - 删除 `WeaponTenRollRow.tsx` 及对应 CSS，移除「看十连 / 看水位」切换逻辑，武器池统一直接渲染水位进度条视图（`PendingRow` + `HitRow` + 五星开关明细）。
+- **测试与构建预算修正（`tests/web-{bar,ui,media,build}.test.ts*`）**：
+  - 修复 `tests/web-build.test.ts` 在 Vitest `NODE_ENV=test` 下未还原 `"production"` 导致 Vite 打入调试 JSX 代码的假超限问题，恢复真实生产产物体积校验（约 `145 KB` < `200 KB`）；同步更新 `web-bar` / `web-ui` / `web-media` 单测与集成测试。

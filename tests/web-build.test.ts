@@ -46,18 +46,27 @@ describe("web build smoke", () => {
     const outDir = fs.mkdtempSync(path.join(os.tmpdir(), "beg-web-build-"));
     tempDirs.push(outDir);
 
-    await build({
-      configFile: false,
-      root: path.resolve("src/web"),
-      base: "./",
-      plugins: [preact()],
-      logLevel: "silent",
-      build: {
-        outDir,
-        emptyOutDir: true,
-        sourcemap: false,
-      },
-    });
+    // Vitest 默认将 NODE_ENV 设为 "test"，需临时恢复为 "production" 才能测真实生产产物而非 jsxDEV 调试包
+    const prevNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      await build({
+        configFile: false,
+        mode: "production",
+        root: path.resolve("src/web"),
+        base: "./",
+        plugins: [preact()],
+        logLevel: "silent",
+        build: {
+          outDir,
+          emptyOutDir: true,
+          sourcemap: false,
+        },
+      });
+    } finally {
+      if (prevNodeEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = prevNodeEnv;
+    }
 
     const indexPath = path.join(outDir, "index.html");
     expect(fs.existsSync(indexPath)).toBe(true);

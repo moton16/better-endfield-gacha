@@ -5,10 +5,17 @@ import { act, cleanup, render, screen, waitFor } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LCX_BUILTIN_ITEMS, LCX_BUILTIN_POOLS } from "../src/core/data/lcx-catalog.js";
 import type { PoolGroup } from "../src/web/api/types.js";
-import { Avatar, bannerFor as avatarBannerFor, iconFor as avatarIconFor, MiniItemTile } from "../src/web/components/Avatar.js";
+import {
+  Avatar,
+  bannerFor as avatarBannerFor,
+  currencyIconFor as avatarCurrencyIconFor,
+  iconFor as avatarIconFor,
+  MiniItemTile,
+} from "../src/web/components/Avatar.js";
 import { PoolSection } from "../src/web/components/PoolSection.js";
 import {
   bannerFor,
+  currencyIconFor,
   iconFor,
   listAvatarPresets,
   listOperatorAvatars,
@@ -69,9 +76,10 @@ afterEach(() => {
 });
 
 describe("media manifest & resolution", () => {
-  it("re-exports iconFor and bannerFor from Avatar.tsx", () => {
+  it("re-exports iconFor, bannerFor, and currencyIconFor from Avatar.tsx", () => {
     expect(avatarIconFor).toBe(iconFor);
     expect(avatarBannerFor).toBe(bannerFor);
+    expect(avatarCurrencyIconFor).toBe(currencyIconFor);
   });
 
   it("normalizes empty, array-of-ids, and object-map manifest formats safely", () => {
@@ -80,6 +88,7 @@ describe("media manifest & resolution", () => {
     expect(empty.chars.size).toBe(0);
     expect(empty.weapons.size).toBe(0);
     expect(empty.boxes.size).toBe(0);
+    expect(empty.currency.size).toBe(0);
     expect(empty.avatars).toEqual([]);
     expect(empty.banners.size).toBe(0);
     expect(empty.itemAlias).toEqual({});
@@ -89,6 +98,7 @@ describe("media manifest & resolution", () => {
       chars: ["chr_0016_laevat", "chars/chr_0017_yvonne.webp", "../evil", "https://bad/x.webp"],
       weapons: ["./media/weapons/wpn_sword_0006.webp", { id: "wpn_pistol_0010" }],
       boxes: ["box_01", "boxes/box_02.webp"],
+      currency: ["item_diamond", "currency/item_gachabyproducts_weapongold.webp"],
       avatars: [
         "preset_01",
         { id: "preset_02", label: "管理员徽章", url: "avatars/preset_02_art.webp" },
@@ -106,6 +116,10 @@ describe("media manifest & resolution", () => {
     expect([...fromArrays.chars]).toEqual(["chr_0016_laevat", "chr_0017_yvonne"]);
     expect([...fromArrays.weapons]).toEqual(["wpn_sword_0006", "wpn_pistol_0010"]);
     expect([...fromArrays.boxes]).toEqual(["box_01", "box_02"]);
+    expect([...fromArrays.currency]).toEqual([
+      "item_diamond",
+      "item_gachabyproducts_weapongold",
+    ]);
     expect(fromArrays.avatars).toEqual([
       {
         id: "preset_01",
@@ -173,19 +187,26 @@ describe("media manifest & resolution", () => {
     expect(fromMaps.banners.has("standard")).toBe(false);
   });
 
-  it("enforces manifest existence check and resolves chars, weapons, and boxes", () => {
+  it("enforces manifest existence check and resolves chars, weapons, boxes, and currency", () => {
     expect(iconFor("chr_0016_laevat")).toBeNull();
     expect(iconFor("")).toBeNull();
+    expect(currencyIconFor("item_diamond")).toBeNull();
 
     setMediaManifestForTest({
       chars: ["chr_0016_laevat"],
       weapons: ["wpn_sword_0006"],
       boxes: ["box_std_01"],
+      currency: ["item_diamond", "item_gachabyproducts_weapongold"],
     });
 
     expect(iconFor("chr_0016_laevat")).toBe("./media/chars/chr_0016_laevat.webp");
     expect(iconFor("wpn_sword_0006")).toBe("./media/weapons/wpn_sword_0006.webp");
     expect(iconFor("box_std_01")).toBe("./media/boxes/box_std_01.webp");
+    expect(currencyIconFor("item_diamond")).toBe("./media/currency/item_diamond.webp");
+    expect(currencyIconFor("item_gachabyproducts_weapongold")).toBe(
+      "./media/currency/item_gachabyproducts_weapongold.webp",
+    );
+    expect(currencyIconFor("missing_currency")).toBeNull();
     expect(iconFor("chr_missing")).toBeNull();
     expect(iconFor("wpn_missing")).toBeNull();
   });
@@ -342,12 +363,37 @@ describe("media manifest & resolution", () => {
 });
 
 describe("Avatar, MiniItemTile & PoolSection manifest integration", () => {
-  it("renders initial/gradient fallbacks when manifest is empty, and images/banners when present", () => {
+  it("renders initial/gradient fallbacks when manifest is empty, and centered char/weapon hero art when present", () => {
     const { container, rerender } = render(
       <div>
         <Avatar name="莱万汀" rarity={6} itemId="chr_0016_laevat" isUp />
         <MiniItemTile name="莱万汀" rarity={6} itemId="chr_0016_laevat" size="xs" />
         <PoolSection group={makePoolGroup()} />
+        <PoolSection
+          group={makePoolGroup({
+            key: "weapon:weaponbox_1_0_1",
+            kind: "weapon",
+            tab: "weapon",
+            poolType: "special",
+            poolId: "weaponbox_1_0_1",
+            title: "熔铸申领",
+            up6Ids: ["wpn_sword_0006"],
+            hits: [
+              {
+                itemId: "wpn_sword_0006",
+                itemName: "熔铸火焰",
+                pity: 18,
+                isFree: false,
+                isNew: true,
+                isUp: true,
+                gachaTs: "1760000090000",
+                seqId: "1002",
+                tone: "yellow",
+                luck: null,
+              },
+            ],
+          })}
+        />
         <PoolSection
           group={makePoolGroup({
             key: "char:E_CharacterGachaPoolType_Standard:standard",
@@ -357,20 +403,19 @@ describe("Avatar, MiniItemTile & PoolSection manifest integration", () => {
             title: "基础寻访",
             up6Ids: [],
             upKnown: false,
+            hits: [],
           })}
         />
       </div>,
     );
 
     expect(container.querySelectorAll("img").length).toBe(0);
-    const poolHeads = container.querySelectorAll(".pool-head");
-    expect(poolHeads.length).toBe(2);
-    expect((poolHeads[0] as HTMLElement).style.backgroundImage).toBe("");
-    expect((poolHeads[1] as HTMLElement).style.backgroundImage).toBe("");
+    expect(container.querySelectorAll(".pool-head-art").length).toBe(0);
 
     act(() => {
       setMediaManifestForTest({
         chars: ["chr_0016_laevat"],
+        weapons: ["wpn_sword_0006"],
         banners: {
           special_1_0_1: "special_1_0_1.webp",
         },
@@ -384,6 +429,31 @@ describe("Avatar, MiniItemTile & PoolSection manifest integration", () => {
         <PoolSection group={makePoolGroup()} />
         <PoolSection
           group={makePoolGroup({
+            key: "weapon:weaponbox_1_0_1",
+            kind: "weapon",
+            tab: "weapon",
+            poolType: "special",
+            poolId: "weaponbox_1_0_1",
+            title: "熔铸申领",
+            up6Ids: ["wpn_sword_0006"],
+            hits: [
+              {
+                itemId: "wpn_sword_0006",
+                itemName: "熔铸火焰",
+                pity: 18,
+                isFree: false,
+                isNew: true,
+                isUp: true,
+                gachaTs: "1760000090000",
+                seqId: "1002",
+                tone: "yellow",
+                luck: null,
+              },
+            ],
+          })}
+        />
+        <PoolSection
+          group={makePoolGroup({
             key: "char:E_CharacterGachaPoolType_Standard:standard",
             tab: "standard",
             poolType: "E_CharacterGachaPoolType_Standard",
@@ -391,22 +461,17 @@ describe("Avatar, MiniItemTile & PoolSection manifest integration", () => {
             title: "基础寻访",
             up6Ids: [],
             upKnown: false,
+            hits: [],
           })}
         />
       </div>,
     );
 
-    const imgs = [...container.querySelectorAll("img")];
-    expect(imgs.length).toBeGreaterThanOrEqual(3);
-    for (const img of imgs) {
-      expect(img.getAttribute("src")).toBe("./media/chars/chr_0016_laevat.webp");
-    }
-
-    const updatedHeads = container.querySelectorAll(".pool-head");
-    expect((updatedHeads[0] as HTMLElement).style.backgroundImage).toContain(
-      "./media/banners/special_1_0_1.webp",
-    );
-    expect((updatedHeads[1] as HTMLElement).style.backgroundImage).toBe("");
+    const charHero = container.querySelector(".pool-head-art.kind-char") as HTMLImageElement | null;
+    const weaponHero = container.querySelector(".pool-head-art.kind-weapon") as HTMLImageElement | null;
+    expect(charHero?.getAttribute("src")).toBe("./media/chars/chr_0016_laevat.webp");
+    expect(weaponHero?.getAttribute("src")).toBe("./media/weapons/wpn_sword_0006.webp");
+    expect(container.querySelectorAll(".pool-head-art").length).toBe(2);
   });
 
   it("loads ./media/manifest.json once on mount and silently ignores fetch errors", async () => {
@@ -440,8 +505,8 @@ describe("Avatar, MiniItemTile & PoolSection manifest integration", () => {
       expect(container.querySelectorAll("img.mini-tile-img").length).toBe(1);
     });
     expect(fetchOk).toHaveBeenCalledTimes(1);
-    const head = container.querySelector(".pool-head") as HTMLElement;
-    expect(head.style.backgroundImage).toContain("./media/banners/special_1_0_1.webp");
+    const heroImg = container.querySelector(".pool-head-art.kind-char") as HTMLImageElement | null;
+    expect(heroImg?.getAttribute("src")).toBe("./media/chars/chr_0016_laevat.webp");
 
     // 运行时 <img> error 事件应优雅退回首字色块
     const firstImg = container.querySelector("img.avatar")!;
@@ -473,6 +538,7 @@ interface RawRealManifest {
   chars: string[];
   weapons: string[];
   boxes: string[];
+  currency: string[];
   avatars: Array<{ id: string; label: string; file: string }>;
   banners: Record<string, string>;
   itemAlias: Record<string, string>;
@@ -514,6 +580,7 @@ describe("real media pack manifest verification", () => {
     expect(raw.chars).toHaveLength(35);
     expect(raw.weapons).toHaveLength(86);
     expect(raw.boxes).toHaveLength(46);
+    expect(raw.currency).toHaveLength(2);
     expect(raw.avatars).toHaveLength(59);
     expect(Object.keys(raw.banners)).toHaveLength(19);
 
@@ -531,6 +598,11 @@ describe("real media pack manifest verification", () => {
     }
     for (const id of raw.boxes) {
       const rel = `boxes/${id}.webp`;
+      expectedFiles.add(rel);
+      expect(isWebpFile(path.join(mediaDir, rel)), `missing/invalid ${rel}`).toBe(true);
+    }
+    for (const id of raw.currency) {
+      const rel = `currency/${id}.webp`;
       expectedFiles.add(rel);
       expect(isWebpFile(path.join(mediaDir, rel)), `missing/invalid ${rel}`).toBe(true);
     }
@@ -555,12 +627,17 @@ describe("real media pack manifest verification", () => {
 
     const actualFiles = listFilesRecursive(mediaDir);
     expect(actualFiles).toEqual([...expectedFiles].sort());
-    expect(actualFiles.filter((f) => f.endsWith(".webp"))).toHaveLength(241);
+    expect(actualFiles.filter((f) => f.endsWith(".webp"))).toHaveLength(243);
   });
 
-  it("resolves high-risk weapons, box aliases, LCX built-in catalog, and character/weapon pool banners", () => {
+  it("resolves high-risk weapons, box aliases, currency icons, LCX built-in catalog, and character/weapon pool banners", () => {
     const raw = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as RawRealManifest;
     setMediaManifestForTest(raw);
+
+    expect(currencyIconFor("item_diamond")).toBe("./media/currency/item_diamond.webp");
+    expect(currencyIconFor("item_gachabyproducts_weapongold")).toBe(
+      "./media/currency/item_gachabyproducts_weapongold.webp",
+    );
 
     // High-risk weapon IDs
     expect(iconFor("wpn_funnel_0008")).toBe("./media/weapons/wpn_funnel_0010.webp");

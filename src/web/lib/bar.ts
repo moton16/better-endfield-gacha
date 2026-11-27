@@ -190,6 +190,47 @@ export function fmtRelativeTime(ms: number, now = Date.now()): string {
 
 const ALL_TABS: readonly Tab[] = ["limited", "weapon", "standard", "beginner"];
 
+export interface UiCostSummary {
+  charCost: number;
+  weaponCost: number;
+}
+
+/**
+ * 估算全账号总消耗（嵌晶玉口径：付费角色寻访 × 500；武库配额口径：付费武器申领 × 198）。
+ * 当响应缺少 groups 时回退使用 overview（不含免费细分）。
+ */
+export function deriveCostSummary(analysis: AccountAnalysis): UiCostSummary {
+  if (analysis.groups.length > 0) {
+    let charPaid = 0;
+    let weaponPaid = 0;
+    for (const g of analysis.groups) {
+      if (g.kind === "weapon") weaponPaid += g.paid;
+      else charPaid += g.paid;
+    }
+    return {
+      charCost: charPaid * 500,
+      weaponCost: weaponPaid * 198,
+    };
+  }
+
+  const charTotal =
+    analysis.overview.limited.total +
+    analysis.overview.standard.total +
+    analysis.overview.beginner.total;
+  return {
+    charCost: charTotal * 500,
+    weaponCost: analysis.overview.weapon.total * 198,
+  };
+}
+
+/** 将大额资源消耗压缩为紧凑展示（<100k 原样显示，>=100k 用 k，>=100m 用 m） */
+export function fmtCompactCost(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) return "0";
+  if (n >= 1e8) return `${(n / 1e7).toFixed(2)}m`;
+  if (n >= 1e5) return `${(n / 1e3).toFixed(1)}k`;
+  return String(Math.round(n));
+}
+
 /** 兼容缺少 analysis.global 的旧响应/测试夹具 */
 export function deriveGlobalSummary(analysis: AccountAnalysis): AccountGlobalSummary {
   if (analysis.global) return analysis.global;

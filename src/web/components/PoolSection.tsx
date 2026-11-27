@@ -3,10 +3,9 @@ import { CHAR_BEGINNER, CHAR_JOINT, CHAR_STANDARD } from "../../core/analysis/co
 import type { PoolGroup } from "../api/types.js";
 import { barWidth, fmtMonthDay, fmtShortDateRange, fmtTs } from "../lib/bar.js";
 import { useMediaManifest } from "../lib/media.js";
-import { Avatar, bannerFor, MiniItemTile } from "./Avatar.js";
+import { Avatar, bannerFor, iconFor, MiniItemTile } from "./Avatar.js";
 import { HitRow } from "./HitRow.js";
 import { PendingRow } from "./PendingRow.js";
-import { WeaponTenRollRow } from "./WeaponTenRollRow.js";
 
 const NO_UP_HINT_TYPES = new Set<string>([CHAR_STANDARD, CHAR_BEGINNER, "constant"]);
 
@@ -19,6 +18,28 @@ function poolThemeClass(group: PoolGroup): string {
   return "theme-limited";
 }
 
+function resolveHeaderArt(
+  group: PoolGroup,
+): { url: string; kind: "char" | "weapon" | "banner" } | null {
+  if (group.kind === "weapon") {
+    const candidateId = group.up6Ids[0] ?? group.hits.find((h) => h.itemId)?.itemId ?? "";
+    const url = candidateId ? iconFor(candidateId) : null;
+    return url ? { url, kind: "weapon" } : null;
+  }
+
+  if (group.up6Ids.length > 1) {
+    const banner = bannerFor(group.poolId);
+    if (banner) return { url: banner, kind: "banner" };
+  }
+
+  const primaryCharId = group.up6Ids[0] ?? group.hits.find((h) => h.itemId)?.itemId ?? "";
+  const charPortrait = primaryCharId ? iconFor(primaryCharId) : null;
+  if (charPortrait) return { url: charPortrait, kind: "char" };
+
+  const banner = bannerFor(group.poolId);
+  return banner ? { url: banner, kind: "banner" } : null;
+}
+
 export function PoolSection({
   group,
   showFiveStar = false,
@@ -28,16 +49,15 @@ export function PoolSection({
 }) {
   const [expanded, setExpanded] = useState(false);
   const [showPityHelp, setShowPityHelp] = useState(false);
-  const hasWeaponRolls = group.kind === "weapon" && (group.weaponTenRolls?.length ?? 0) > 0;
-  const [weaponView, setWeaponView] = useState<"ten" | "pity" | null>(null);
-  const activeWeaponView = weaponView ?? (hasWeaponRolls ? "ten" : "pity");
+  const [failedHeroUrl, setFailedHeroUrl] = useState<string | null>(null);
   useMediaManifest();
 
   if (group.total === 0) return null;
 
   const missingUp = !group.upKnown && group.count6 > 0 && !NO_UP_HINT_TYPES.has(group.poolType);
   const dateRange = fmtShortDateRange(group.firstTs, group.lastTs);
-  const bannerUrl = bannerFor(group.poolId);
+  const hero = resolveHeaderArt(group);
+  const effectiveHero = hero && hero.url !== failedHeroUrl ? hero : null;
   const isSharedScope =
     group.kind === "char" && group.poolType !== CHAR_JOINT;
 
@@ -53,26 +73,23 @@ export function PoolSection({
   const showPendingRow =
     group.pending > 0 && (group.isCurrent || !isSharedScope);
 
-  const visibleWeaponRolls = hasWeaponRolls
-    ? group.weaponTenRolls!.filter((roll) => {
-        if (showFiveStar) return roll.items.length > 0;
-        return roll.items.some((it) => it.isGift || it.rarity >= 6);
-      })
-    : [];
-
   const freeBatches = group.freeBatches ?? [];
-  const showTenRollMode = hasWeaponRolls && activeWeaponView === "ten";
-  const hasAnyRecordRow = showTenRollMode
-    ? visibleWeaponRolls.length > 0
-    : group.hits.length > 0 || showPendingRow || freeBatches.length > 0;
+  const hasAnyRecordRow = group.hits.length > 0 || showPendingRow || freeBatches.length > 0;
 
   return (
     <section class="pool-section" aria-label={group.title}>
-      <div
-        class={`pool-head ${poolThemeClass(group)}`}
-        style={bannerUrl ? { backgroundImage: `url(${bannerUrl})` } : undefined}
-      >
+      <div class={`pool-head ${poolThemeClass(group)}`}>
         <div class="pool-head-backdrop" aria-hidden="true" />
+        {effectiveHero && (
+          <div class={`pool-head-art-box kind-${effectiveHero.kind}`} aria-hidden="true">
+            <img
+              class={`pool-head-art kind-${effectiveHero.kind}`}
+              src={effectiveHero.url}
+              alt=""
+              onError={() => setFailedHeroUrl(effectiveHero.url)}
+            />
+          </div>
+        )}
         <div class="pool-head-wrapper">
           <div class="pool-head-main">
             <div class="pool-title-row">
@@ -113,15 +130,6 @@ export function PoolSection({
 
           <div class="pool-head-right">
             <div class="pool-head-actions">
-              {hasWeaponRolls && (
-                <button
-                  type="button"
-                  class="pool-link-btn"
-                  onClick={() => setWeaponView(activeWeaponView === "ten" ? "pity" : "ten")}
-                >
-                  {activeWeaponView === "ten" ? "看水位" : "看十连"}
-                </button>
-              )}
               <button
                 type="button"
                 class="pool-link-btn"
@@ -194,14 +202,6 @@ export function PoolSection({
       <div class="pool-records-body">
         {!hasAnyRecordRow ? (
           <div class="record-empty">该卡池未抽出六星</div>
-        ) : showTenRollMode ? (
-          visibleWeaponRolls.map((roll, idx) => (
-            <WeaponTenRollRow
-              key={`${roll.rollIndex}-${roll.gachaTs}-${idx}`}
-              roll={roll}
-              showFiveStar={showFiveStar}
-            />
-          ))
         ) : (
           <>
             {showPendingRow && (

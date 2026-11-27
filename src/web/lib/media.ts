@@ -12,12 +12,13 @@ export interface MediaManifest {
   chars: Set<string>;
   weapons: Set<string>;
   boxes: Set<string>;
+  currency: Set<string>;
   avatars: AvatarPreset[];
   banners: Map<string, string>;
   itemAlias: Record<string, string>;
 }
 
-type MediaCategory = "chars" | "weapons" | "boxes" | "avatars" | "banners";
+type MediaCategory = "chars" | "weapons" | "boxes" | "currency" | "avatars" | "banners";
 
 const MAX_DATA_URL_BYTES = 64 * 1024;
 const SAFE_STEM_RE = /^[A-Za-z0-9_.-]+$/;
@@ -74,7 +75,7 @@ function stripCategoryStem(raw: string, category: MediaCategory): string | null 
 function stripAnyCategoryStem(raw: string): string | null {
   let rel = stripMediaRoot(raw);
   if (!rel) return null;
-  for (const cat of ["chars/", "weapons/", "boxes/", "avatars/", "banners/"] as const) {
+  for (const cat of ["chars/", "weapons/", "boxes/", "currency/", "avatars/", "banners/"] as const) {
     if (rel.startsWith(cat)) {
       rel = rel.slice(cat.length);
       break;
@@ -90,13 +91,17 @@ function createEmptyManifest(): MediaManifest {
     chars: new Set<string>(),
     weapons: new Set<string>(),
     boxes: new Set<string>(),
+    currency: new Set<string>(),
     avatars: [],
     banners: new Map<string, string>(),
     itemAlias: {},
   };
 }
 
-function normalizeIdSet(raw: unknown, category: "chars" | "weapons" | "boxes"): Set<string> {
+function normalizeIdSet(
+  raw: unknown,
+  category: "chars" | "weapons" | "boxes" | "currency",
+): Set<string> {
   const out = new Set<string>();
   if (Array.isArray(raw)) {
     for (const item of raw) {
@@ -248,9 +253,14 @@ function normalizeItemAlias(raw: unknown): Record<string, string> {
     if (
       cleaned.startsWith("chars/") ||
       cleaned.startsWith("weapons/") ||
-      cleaned.startsWith("boxes/")
+      cleaned.startsWith("boxes/") ||
+      cleaned.startsWith("currency/")
     ) {
-      const cat = cleaned.slice(0, cleaned.indexOf("/")) as "chars" | "weapons" | "boxes";
+      const cat = cleaned.slice(0, cleaned.indexOf("/")) as
+        | "chars"
+        | "weapons"
+        | "boxes"
+        | "currency";
       if (!stripCategoryStem(cleaned, cat)) continue;
     } else if (!isSafeStem(stripWebpExt(cleaned))) {
       continue;
@@ -273,6 +283,7 @@ export function normalizeManifest(raw: unknown): MediaManifest {
     chars: normalizeIdSet(raw.chars, "chars"),
     weapons: normalizeIdSet(raw.weapons, "weapons"),
     boxes: normalizeIdSet(raw.boxes, "boxes"),
+    currency: normalizeIdSet(raw.currency, "currency"),
     avatars: normalizeAvatars(raw.avatars),
     banners: normalizeBanners(raw.banners),
     itemAlias: normalizeItemAlias(raw.itemAlias),
@@ -359,13 +370,26 @@ function resolveTarget(manifest: MediaManifest, target: string): string | null {
     const stem = stripCategoryStem(rel, "boxes");
     return stem && manifest.boxes.has(stem) ? `./media/boxes/${stem}.webp` : null;
   }
+  if (rel.startsWith("currency/")) {
+    const stem = stripCategoryStem(rel, "currency");
+    return stem && manifest.currency.has(stem) ? `./media/currency/${stem}.webp` : null;
+  }
 
   const stem = stripWebpExt(rel);
   if (!isSafeStem(stem)) return null;
   if (manifest.chars.has(stem)) return `./media/chars/${stem}.webp`;
   if (manifest.weapons.has(stem)) return `./media/weapons/${stem}.webp`;
   if (manifest.boxes.has(stem)) return `./media/boxes/${stem}.webp`;
+  if (manifest.currency.has(stem)) return `./media/currency/${stem}.webp`;
   return null;
+}
+
+export function currencyIconFor(itemId: string): string | null {
+  const id = typeof itemId === "string" ? itemId.trim() : "";
+  if (!id) return null;
+  const stem = stripCategoryStem(id, "currency");
+  if (!stem) return null;
+  return currentManifest.currency.has(stem) ? `./media/currency/${stem}.webp` : null;
 }
 
 export function iconFor(itemId: string): string | null {
