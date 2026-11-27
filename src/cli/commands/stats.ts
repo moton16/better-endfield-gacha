@@ -7,7 +7,8 @@ export const stats: Command = {
   name: "stats",
   summary: "各卡池抽数/星级统计",
   async run(ctx) {
-    const store = GachaStore.open(ctx.dataDir());
+    const dataDir = ctx.dataDir();
+    const store = GachaStore.open(dataDir);
     const show = ctx.bool("show-ids");
     const targetAccount = ctx.str("account");
     try {
@@ -21,6 +22,7 @@ export const stats: Command = {
             pools,
             rerunChar: store.getRerunCounts(a.accountKey, "char"),
             rerunWeapon: store.getRerunCounts(a.accountKey, "weapon"),
+            dataDir,
           }),
         );
         console.log(JSON.stringify(analyses, null, 2));

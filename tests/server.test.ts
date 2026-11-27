@@ -3,6 +3,7 @@ import http from "node:http";
 import type { AddressInfo } from "node:net";
 import os from "node:os";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { COMMANDS } from "../src/cli/commands/index.js";
 import { makeContext } from "../src/cli/context.js";
@@ -11,6 +12,7 @@ import type { AccountAnalysis } from "../src/core/analysis/types.js";
 import { parseHyTokenInput } from "../src/core/auth/passport.js";
 import { Vault } from "../src/core/auth/vault.js";
 import { maskKey as coreMaskKey } from "../src/core/mask.js";
+import { fingerprint } from "../src/core/redact.js";
 import { GachaStore } from "../src/core/storage/store.js";
 import { buildAccountKey, type AccountRow, type GachaRecord } from "../src/core/types.js";
 import { HttpError } from "../src/server/http.js";
@@ -20,6 +22,7 @@ import { VERSION } from "../src/version.js";
 import lcxSample from "./fixtures/io/lcx-sample.json" with { type: "json" };
 import analysisFixture from "./fixtures/server/analysis.json" with { type: "json" };
 import accountsFixture from "./fixtures/server/accounts.json" with { type: "json" };
+import passportVaultFixture from "./fixtures/server/passport-vault.json" with { type: "json" };
 import recordsFixture from "./fixtures/server/records.json" with { type: "json" };
 import { buildBlockfileCache, fakeToken } from "./helpers/blockfile-builder.js";
 import { combineFetch } from "./helpers/combine-fetch.js";
@@ -729,10 +732,11 @@ describe("W3 local HTTP server", () => {
 
     const vaultListRes = await fetch(`${base}/api/passport/vault`, { headers: { "X-BEG-Key": app.key } });
     expect(vaultListRes.status).toBe(200);
-    const vaultList = (await vaultListRes.json()) as Array<{ id: string; provider: string }>;
+    const vaultList = (await vaultListRes.json()) as Array<{ id: string; provider: string; label: string; createdAt: number }>;
     expect(vaultList).toHaveLength(1);
     expect(vaultList[0]?.id).toBe(inspectJson.vaultId);
-    expect(new Vault(dataDir).list()).toHaveLength(1);
+    expect(vaultList[0]?.label).toBe("bilibili服 · 1角色");
+    expect(new Vault(dataDir).list()[0]?.label).toBe("bilibili服 · 1角色");
 
     // 触发 passport 模式同步
     const syncRes = await fetch(`${base}/api/sync`, {
@@ -767,6 +771,7 @@ describe("W3 local HTTP server", () => {
     expect(analysisCheck.groups.length).toBeGreaterThanOrEqual(4);
     expect(accountsFixture.length).toBeGreaterThanOrEqual(2);
     expect(recordsFixture.items.length).toBe(recordsFixture.total);
+    expect(passportVaultFixture[0]?.label).toBe("bilibili服 · 1角色");
 
     expect(cliMaskKey("cn_2_SYNTH1_ROLE1", false)).toBe(coreMaskKey("cn_2_SYNTH1_ROLE1", false));
     expect(cliMaskKey("cn_2_SYNTH1_ROLE1", true)).toBe("cn_2_SYNTH1_ROLE1");
@@ -977,5 +982,590 @@ describe("W3 local HTTP server", () => {
     expect(impJson.unresolvedPools).toEqual([]);
     expect(impJson.plans[0]).toMatchObject({ added: 1, duplicates: 1, conflicts: 0 });
     expect(impJson.warnings.some((w) => w.includes("截断为 000"))).toBe(true);
+  });
+
+  it("18. QR 登录边界校验：拒绝 gryphline、内存模式禁止 save=true、支持 save=false 与 5 分钟 TTL 过期 404", async () => {
+    const pp = createFakePassport({ hytoken: "SYNTH_QR_BOUND_HY_01", bindings: [] });
+    const { app: memApp } = createMemoryApp({ deps: { fetch: pp.fetch } });
+    const memBase = (await memApp.listen()).split("#")[0]!.replace(/\/$/, "");
+
+    // 国际服拒绝扫码
+    const rGlobal = await fetch(`${memBase}/api/passport/qr`, {
+      method: "POST",
+      headers: { "X-BEG-Key": memApp.key, "Content-Type": "application/json" },
+      body: JSON.stringify({ provider: "gryphline" }),
+    });
+    expect(rGlobal.status).toBe(400);
+    expect((await rGlobal.json()) as { message: string }).toMatchObject({
+      message: "国际服暂不支持扫码登录，请使用通行证 token",
+    });
+
+    // 内存模式默认 save=true 被拒
+    const rMemSave = await fetch(`${memBase}/api/passport/qr`, {
+      method: "POST",
+      headers: { "X-BEG-Key": memApp.key, "Content-Type": "application/json" },
+      body: "{}",
+    });
+    expect(rMemSave.status).toBe(400);
+    expect((await rMemSave.json()) as { message: string }).toMatchObject({
+      message: "内存模式不支持保存通行证保险库",
+    });
+
+    // 不存在的 scanId 返回 404 qr_expired
+    const rMissing = await fetch(`${memBase}/api/passport/qr/NONEXISTENT_SCAN`, {
+      headers: { "X-BEG-Key": memApp.key },
+    });
+    expect(rMissing.status).toBe(404);
+    expect(await rMissing.json()).toEqual({
+      error: "qr_expired",
+      message: "扫码会话不存在或已过期，请重新生成二维码",
+    });
+
+    // save=false 在内存模式允许创建，且超过 5 分钟 TTL 后过期返回 404
+    let fakeNow = 1_760_000_000_000;
+    const nowSpy = vi.spyOn(Date, "now").mockImplementation(() => fakeNow);
+    try {
+      const rCreate = await fetch(`${memBase}/api/passport/qr`, {
+        method: "POST",
+        headers: { "X-BEG-Key": memApp.key, "Content-Type": "application/json" },
+        body: JSON.stringify({ save: false }),
+      });
+      expect(rCreate.status).toBe(200);
+      const { scanId } = (await rCreate.json()) as { scanId: string; scanUrl: string };
+      expect(scanId).toBe("SCAN-SYNTH-1");
+
+      fakeNow += 5 * 60 * 1000 + 1;
+      const rExpired = await fetch(`${memBase}/api/passport/qr/${encodeURIComponent(scanId)}`, {
+        headers: { "X-BEG-Key": memApp.key },
+      });
+      expect(rExpired.status).toBe(404);
+      expect((await rExpired.json()) as { error: string }).toMatchObject({ error: "qr_expired" });
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
+  it("19. QR 登录全链路：create -> pending（含 hint）-> confirmed -> Vault 写入语义 label 且不泄露凭据、重复轮询幂等", async () => {
+    const dataDir = mkTempDir("beg-w3-qr-");
+    const qrHy = "SYNTH_QR_HYTOKEN_ABCDEF0123456789";
+    let step = 0;
+    const pp = createFakePassport({
+      hytoken: qrHy,
+      qrToken: qrHy,
+      bindings: [
+        {
+          uid: "QR_DEL_UID",
+          channelMasterId: "1",
+          channelName: "官服",
+          isDeleted: true,
+          roles: [{ roleId: "QR_DEL_ROLE", nickName: "已删角色" }],
+          u8Token: "UNUSED_DEL",
+        },
+        {
+          uid: "QR_OFF_UID",
+          channelMasterId: "1",
+          channelName: "官服",
+          isDefault: false,
+          roles: [{ roleId: "QR_OFF_ROLE", nickName: "官服测试" }],
+          u8Token: "U8_QR_OFF",
+        },
+        {
+          uid: "QR_BILI_UID",
+          channelMasterId: "2",
+          channelName: "bilibili服",
+          isDefault: true,
+          roles: [{ roleId: "QR_BILI_ROLE", nickName: "B服测试" }],
+          u8Token: "U8_QR_BILI",
+        },
+      ],
+      override: (url) => {
+        if (url.pathname !== "/general/v1/scan_status") return undefined;
+        step += 1;
+        if (step === 1) {
+          return new Response(JSON.stringify({ status: 100, msg: "未扫码" }), {
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (step === 2) {
+          return new Response(JSON.stringify({ status: 101, msg: "已扫码，请在手机确认" }), {
+            headers: { "content-type": "application/json" },
+          });
+        }
+        return new Response(JSON.stringify({ status: 0, data: { scanCode: "SCANCODE-SYNTH-OK" } }), {
+          headers: { "content-type": "application/json" },
+        });
+      },
+    });
+
+    const { app } = createMemoryApp({ dataDir, deps: { fetch: pp.fetch } });
+    const base = (await app.listen()).split("#")[0]!.replace(/\/$/, "");
+
+    const createRes = await fetch(`${base}/api/passport/qr`, {
+      method: "POST",
+      headers: { "X-BEG-Key": app.key, "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    expect(createRes.status).toBe(200);
+    const created = (await createRes.json()) as { scanId: string; scanUrl: string };
+    expect(created.scanId).toBe("SCAN-SYNTH-1");
+    expect(created.scanUrl).toBeTruthy();
+
+    // Poll 1: status=100 -> pending（无 hint / 无 consecutiveErrors）
+    const p1 = await fetch(`${base}/api/passport/qr/${created.scanId}`, { headers: { "X-BEG-Key": app.key } });
+    expect(p1.status).toBe(200);
+    expect(await p1.json()).toEqual({ status: "pending" });
+
+    // Poll 2: status=101 -> pending 带 hint
+    const p2 = await fetch(`${base}/api/passport/qr/${created.scanId}`, { headers: { "X-BEG-Key": app.key } });
+    expect(p2.status).toBe(200);
+    expect(await p2.json()).toEqual({ status: "pending", hint: "已扫码，请在手机确认" });
+
+    // Poll 3: confirmed -> 换票并落库 Vault，绝不泄露 hytoken / uid / roleId / scanCode
+    const p3 = await fetch(`${base}/api/passport/qr/${created.scanId}`, { headers: { "X-BEG-Key": app.key } });
+    expect(p3.status).toBe(200);
+    const p3Text = await p3.text();
+    expect(p3Text).not.toContain(qrHy);
+    expect(p3Text).not.toContain("QR_OFF_UID");
+    expect(p3Text).not.toContain("QR_BILI_UID");
+    expect(p3Text).not.toContain("QR_OFF_ROLE");
+    expect(p3Text).not.toContain("QR_BILI_ROLE");
+    expect(p3Text).not.toContain("SCANCODE-SYNTH-OK");
+
+    const p3Json = JSON.parse(p3Text) as {
+      status: string;
+      vaultId?: string;
+      label: string;
+      bindings: Array<{ channelMasterId: string; uidFingerprint: string }>;
+    };
+    const expectedVaultId = fingerprint(qrHy);
+    expect(p3Json).toEqual({
+      status: "confirmed",
+      vaultId: expectedVaultId,
+      label: "官服 · 1角色 / bilibili服 · 1角色",
+      bindings: [
+        {
+          channelName: "官服",
+          channelMasterId: "1",
+          roleCount: 1,
+          isDefault: false,
+          uidFingerprint: fingerprint("QR_OFF_UID"),
+        },
+        {
+          channelName: "bilibili服",
+          channelMasterId: "2",
+          roleCount: 1,
+          isDefault: true,
+          uidFingerprint: fingerprint("QR_BILI_UID"),
+        },
+      ],
+    });
+
+    // Vault 已加密保存且包含语义 label，磁盘不含明文 hytoken
+    const vaultRaw = fs.readFileSync(path.join(dataDir, "vault.json"), "utf8");
+    expect(vaultRaw).not.toContain(qrHy);
+    const vault = new Vault(dataDir);
+    expect(vault.load(expectedVaultId)).toEqual({ provider: "hypergryph", token: qrHy });
+
+    const vaultListRes = await fetch(`${base}/api/passport/vault`, { headers: { "X-BEG-Key": app.key } });
+    expect(vaultListRes.status).toBe(200);
+    const vaultList = (await vaultListRes.json()) as Array<{ id: string; provider: string; label: string; createdAt: number }>;
+    expect(vaultList).toHaveLength(1);
+    expect(vaultList[0]).toMatchObject({
+      id: expectedVaultId,
+      provider: "hypergryph",
+      label: "官服 · 1角色 / bilibili服 · 1角色",
+    });
+
+    // Poll 4: 幂等返回缓存结果，不再次请求上游 scan_status / token_by_scan_code
+    const callsBeforeIdempotent = pp.calls.length;
+    const p4 = await fetch(`${base}/api/passport/qr/${created.scanId}`, { headers: { "X-BEG-Key": app.key } });
+    expect(p4.status).toBe(200);
+    expect(await p4.json()).toEqual(p3Json);
+    expect(pp.calls.length).toBe(callsBeforeIdempotent);
+
+    // save=false 确认后不写 Vault 且响应不含 vaultId
+    step = 2; // 下次 scan_status 直接 confirmed
+    const noSaveCreate = await fetch(`${base}/api/passport/qr`, {
+      method: "POST",
+      headers: { "X-BEG-Key": app.key, "Content-Type": "application/json" },
+      body: JSON.stringify({ save: false }),
+    });
+    expect(noSaveCreate.status).toBe(200);
+    const noSavePoll = await fetch(`${base}/api/passport/qr/SCAN-SYNTH-1`, { headers: { "X-BEG-Key": app.key } });
+    expect(noSavePoll.status).toBe(200);
+    const noSaveJson = (await noSavePoll.json()) as { status: string; vaultId?: string; label: string };
+    expect(noSaveJson.status).toBe("confirmed");
+    expect(noSaveJson.vaultId).toBeUndefined();
+    expect(noSaveJson.label).toBe("官服 · 1角色 / bilibili服 · 1角色");
+  });
+
+  it("20. QR 轮询区分连续网络/HTTP 异常（<3 次暂态后由 status=100 清零；>=3 次返回 status=error）", async () => {
+    const dataDir = mkTempDir("beg-w3-qr-err-");
+    const qrHy = "SYNTH_QR_ERR_HYTOKEN_123456";
+    let mode: "reset_then_ok" | "fail_three" = "reset_then_ok";
+    let pollIdx = 0;
+
+    const basePp = createFakePassport({
+      hytoken: qrHy,
+      qrToken: qrHy,
+      bindings: [
+        {
+          uid: "QR_ERR_UID",
+          channelMasterId: "2",
+          channelName: "bilibili服",
+          roles: [{ roleId: "QR_ERR_ROLE", nickName: "容错测试" }],
+          u8Token: "U8_QR_ERR",
+        },
+      ],
+    });
+
+    const f: typeof fetch = async (input, init) => {
+      const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url);
+      if (url.pathname === "/general/v1/scan_status") {
+        pollIdx += 1;
+        if (mode === "reset_then_ok") {
+          if (pollIdx === 1) throw new Error("ECONNRESET https://x.invalid?token=SHOULD_SCRUB");
+          if (pollIdx === 2) {
+            return new Response(JSON.stringify({ msg: "gateway down" }), {
+              status: 502,
+              headers: { "content-type": "application/json" },
+            });
+          }
+          if (pollIdx === 3) {
+            return new Response(JSON.stringify({ status: 100, msg: "未扫码" }), {
+              headers: { "content-type": "application/json" },
+            });
+          }
+          if (pollIdx === 4) {
+            return new Response(JSON.stringify({ msg: "bad gateway 2" }), {
+              status: 503,
+              headers: { "content-type": "application/json" },
+            });
+          }
+          return new Response(JSON.stringify({ status: 0, data: { scanCode: "SCANCODE-SYNTH-OK" } }), {
+            headers: { "content-type": "application/json" },
+          });
+        }
+        return new Response(JSON.stringify({ msg: `upstream down #${pollIdx}` }), {
+          status: 502,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      return basePp.fetch(input, init);
+    };
+
+    const { app } = createMemoryApp({ dataDir, deps: { fetch: f } });
+    const base = (await app.listen()).split("#")[0]!.replace(/\/$/, "");
+
+    // 场景 A：2 次异常 → status=100 正常 pending 清零计数 → 再 1 次异常仍为 consecutiveErrors=1 → 最终 confirmed
+    await fetch(`${base}/api/passport/qr`, {
+      method: "POST",
+      headers: { "X-BEG-Key": app.key, "Content-Type": "application/json" },
+      body: "{}",
+    });
+
+    const a1 = (await (await fetch(`${base}/api/passport/qr/SCAN-SYNTH-1`, { headers: { "X-BEG-Key": app.key } })).json()) as {
+      status: string;
+      consecutiveErrors?: number;
+      transientError?: string;
+    };
+    expect(a1.status).toBe("pending");
+    expect(a1.consecutiveErrors).toBe(1);
+    expect(a1.transientError).toContain("<redacted>");
+    expect(a1.transientError).not.toContain("SHOULD_SCRUB");
+
+    const a2 = (await (await fetch(`${base}/api/passport/qr/SCAN-SYNTH-1`, { headers: { "X-BEG-Key": app.key } })).json()) as {
+      status: string;
+      consecutiveErrors?: number;
+      transientError?: string;
+    };
+    expect(a2).toMatchObject({ status: "pending", consecutiveErrors: 2 });
+    expect(a2.transientError).toContain("502");
+
+    const a3 = await (await fetch(`${base}/api/passport/qr/SCAN-SYNTH-1`, { headers: { "X-BEG-Key": app.key } })).json();
+    expect(a3).toEqual({ status: "pending" });
+
+    const a4 = (await (await fetch(`${base}/api/passport/qr/SCAN-SYNTH-1`, { headers: { "X-BEG-Key": app.key } })).json()) as {
+      status: string;
+      consecutiveErrors?: number;
+    };
+    expect(a4).toMatchObject({ status: "pending", consecutiveErrors: 1 });
+
+    const a5 = (await (await fetch(`${base}/api/passport/qr/SCAN-SYNTH-1`, { headers: { "X-BEG-Key": app.key } })).json()) as {
+      status: string;
+      label: string;
+    };
+    expect(a5).toMatchObject({ status: "confirmed", label: "bilibili服 · 1角色" });
+
+    // 场景 B：连续 3 次网络/HTTP 异常 → 返回 status="error" 并中止后续上游轮询
+    mode = "fail_three";
+    pollIdx = 0;
+    await fetch(`${base}/api/passport/qr`, {
+      method: "POST",
+      headers: { "X-BEG-Key": app.key, "Content-Type": "application/json" },
+      body: "{}",
+    });
+
+    const b1 = await (await fetch(`${base}/api/passport/qr/SCAN-SYNTH-1`, { headers: { "X-BEG-Key": app.key } })).json();
+    expect(b1).toMatchObject({ status: "pending", consecutiveErrors: 1 });
+    const b2 = await (await fetch(`${base}/api/passport/qr/SCAN-SYNTH-1`, { headers: { "X-BEG-Key": app.key } })).json();
+    expect(b2).toMatchObject({ status: "pending", consecutiveErrors: 2 });
+    const b3 = (await (await fetch(`${base}/api/passport/qr/SCAN-SYNTH-1`, { headers: { "X-BEG-Key": app.key } })).json()) as {
+      status: string;
+      error: string;
+    };
+    expect(b3.status).toBe("error");
+    expect(b3.error).toContain("连续 3 次");
+    expect(b3.error).toContain("upstream down #3");
+
+    // 再次轮询直接返回缓存错误，不再递增 pollIdx
+    const b4 = await (await fetch(`${base}/api/passport/qr/SCAN-SYNTH-1`, { headers: { "X-BEG-Key": app.key } })).json();
+    expect(b4).toEqual(b3);
+    expect(pollIdx).toBe(3);
+  });
+
+  it("21. 账号头像持久化：PUT /api/accounts/:key/avatar 校验与 GET /api/accounts SQLite 持久化", async () => {
+    const dataDir = mkTempDir("beg-p1-avatar-");
+    const webDir = mkTempDir("beg-p1-emptyweb-");
+    const store1 = GachaStore.open(dataDir);
+    let store1Open = true;
+    const app1 = createApp({ dataDir, webDir, deps: { store: store1 } });
+    let app1Open = true;
+    cleanups.push(async () => {
+      if (app1Open) await app1.close();
+      if (store1Open) store1.close();
+    });
+
+    const acc1 = mkAccount({
+      accountKey: "cn_2_SYNTHAVATAR1_SYNTHROLE1",
+      bindingUid: "SYNTHAVATAR1",
+      roleId: "SYNTHROLE1",
+      nickname: "头像主号",
+      updatedAt: 1_760_000_002_000,
+    });
+    const acc2 = mkAccount({
+      accountKey: "cn_1_SYNTHAVATAR2_SYNTHROLE2",
+      channelMasterId: "1",
+      channelName: "官服",
+      bindingUid: "SYNTHAVATAR2",
+      roleId: "SYNTHROLE2",
+      nickname: "头像副号",
+      updatedAt: 1_760_000_001_000,
+    });
+    store1.upsertAccount(acc1);
+    store1.upsertAccount(acc2);
+
+    const base1 = (await app1.listen()).split("#")[0]!.replace(/\/$/, "");
+    const acc1Path = `/api/accounts/${encodeURIComponent(acc1.accountKey)}/avatar`;
+
+    // 初始默认返回空字符串
+    const initList = (await (await fetch(`${base1}/api/accounts`, { headers: { "X-BEG-Key": app1.key } })).json()) as Array<{
+      accountKey: string;
+      avatar: string;
+    }>;
+    expect(initList.map((x) => [x.accountKey, x.avatar])).toEqual([
+      [acc1.accountKey, ""],
+      [acc2.accountKey, ""],
+    ]);
+
+    // 1. 不存在账号 -> 404
+    const r404 = await fetch(`${base1}/api/accounts/nonexistent_acc/avatar`, {
+      method: "PUT",
+      headers: { "X-BEG-Key": app1.key, "Content-Type": "application/json" },
+      body: JSON.stringify({ avatar: "media/avatars/preset_1.webp" }),
+    });
+    expect(r404.status).toBe(404);
+
+    // 2. 非法类型 / 非法格式 / 路径穿越 / SVG / HTTP / 超限 DataURL -> 400 bad_avatar
+    const prefixPng = "data:image/png;base64,";
+    const over64KbDataUrl = prefixPng + "A".repeat(64 * 1024 - prefixPng.length + 1);
+    expect(Buffer.byteLength(over64KbDataUrl, "utf8")).toBe(64 * 1024 + 1);
+
+    const badPayloads: unknown[] = [
+      {},
+      { avatar: 123 },
+      { avatar: null },
+      { avatar: "data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=" },
+      { avatar: "data:image/svg+xml,<svg/>" },
+      { avatar: "https://evil.example.com/avatar.webp" },
+      { avatar: "http://127.0.0.1:8080/avatar.webp" },
+      { avatar: "media/avatars/../secret.webp" },
+      { avatar: "media/avatars/..webp" },
+      { avatar: "media/weapons/wpn_001.webp" },
+      { avatar: "media/avatars/not_webp.png" },
+      { avatar: "./media/avatars/preset_1.webp" },
+      { avatar: over64KbDataUrl },
+    ];
+    for (const payload of badPayloads) {
+      const rBad = await fetch(`${base1}${acc1Path}`, {
+        method: "PUT",
+        headers: { "X-BEG-Key": app1.key, "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      expect(rBad.status).toBe(400);
+      expect((await rBad.json()) as { error: string }).toMatchObject({ error: "bad_avatar" });
+    }
+    expect(store1.getAccountAvatar(acc1.accountKey)).toBe("");
+
+    // 3. 合法预设路径 media/avatars/*.webp 与干员路径 media/chars/*.webp
+    const rPreset = await fetch(`${base1}${acc1Path}`, {
+      method: "PUT",
+      headers: { "X-BEG-Key": app1.key, "Content-Type": "application/json" },
+      body: JSON.stringify({ avatar: "media/avatars/endmin_01.webp" }),
+    });
+    expect(rPreset.status).toBe(200);
+    expect(await rPreset.json()).toEqual({ accountKey: acc1.accountKey, avatar: "media/avatars/endmin_01.webp" });
+
+    const rChar = await fetch(`${base1}${acc1Path}`, {
+      method: "PUT",
+      headers: { "X-BEG-Key": app1.key, "Content-Type": "application/json" },
+      body: JSON.stringify({ avatar: "media/chars/chr_0016_laevat.webp" }),
+    });
+    expect(rChar.status).toBe(200);
+    expect(await rChar.json()).toEqual({ accountKey: acc1.accountKey, avatar: "media/chars/chr_0016_laevat.webp" });
+
+    // 4. 合法 <= 64 KB 光栅 DataURL（PNG/JPEG/WebP 与精确 64 KB 边界）与跨实例 SQLite 持久化验证
+    const exact64KbDataUrl = prefixPng + "A".repeat(64 * 1024 - prefixPng.length);
+    expect(Buffer.byteLength(exact64KbDataUrl, "utf8")).toBe(64 * 1024);
+
+    const rBoundary = await fetch(`${base1}${acc1Path}`, {
+      method: "PUT",
+      headers: { "X-BEG-Key": app1.key, "Content-Type": "application/json" },
+      body: JSON.stringify({ avatar: exact64KbDataUrl }),
+    });
+    expect(rBoundary.status).toBe(200);
+
+    const jpegDataUrl = "data:image/jpeg;base64,/9j/4AAQSkZJRg==";
+    const rJpeg = await fetch(`${base1}${acc1Path}`, {
+      method: "PUT",
+      headers: { "X-BEG-Key": app1.key, "Content-Type": "application/json" },
+      body: JSON.stringify({ avatar: jpegDataUrl }),
+    });
+    expect(rJpeg.status).toBe(200);
+
+    const webpDataUrl = "data:image/webp;base64,UklGRh4AAABXRUJQVlA4TBEAAAAvAAAAAAfQ//73v/+BiOh/AAA=";
+    const rWebp = await fetch(`${base1}${acc1Path}`, {
+      method: "PUT",
+      headers: { "X-BEG-Key": app1.key, "Content-Type": "application/json" },
+      body: JSON.stringify({ avatar: webpDataUrl }),
+    });
+    expect(rWebp.status).toBe(200);
+    expect(await rWebp.json()).toEqual({ accountKey: acc1.accountKey, avatar: webpDataUrl });
+
+    // 关闭 app1 与 store1 后重新打开 SQLite，验证账号头像按 accountKey 隔离并持久保留
+    await app1.close();
+    app1Open = false;
+    store1.close();
+    store1Open = false;
+
+    const store2 = GachaStore.open(dataDir);
+    const app2 = createApp({ dataDir, webDir, deps: { store: store2 } });
+    cleanups.push(async () => {
+      await app2.close();
+      store2.close();
+    });
+
+    expect(store2.getAccountAvatar(acc1.accountKey)).toBe(webpDataUrl);
+    expect(store2.getAccountAvatar(acc2.accountKey)).toBe("");
+
+    const base2 = (await app2.listen()).split("#")[0]!.replace(/\/$/, "");
+    const list2 = (await (await fetch(`${base2}/api/accounts`, { headers: { "X-BEG-Key": app2.key } })).json()) as Array<{
+      accountKey: string;
+      avatar: string;
+    }>;
+    expect(list2.map((x) => [x.accountKey, x.avatar])).toEqual([
+      [acc1.accountKey, webpDataUrl],
+      [acc2.accountKey, ""],
+    ]);
+
+    // 5. 传入 "" 恢复默认，清空持久化头像
+    const rReset = await fetch(`${base2}${acc1Path}`, {
+      method: "PUT",
+      headers: { "X-BEG-Key": app2.key, "Content-Type": "application/json" },
+      body: JSON.stringify({ avatar: "" }),
+    });
+    expect(rReset.status).toBe(200);
+    expect(await rReset.json()).toEqual({ accountKey: acc1.accountKey, avatar: "" });
+    expect(store2.getAccountAvatar(acc1.accountKey)).toBe("");
+
+    const listAfterReset = (await (await fetch(`${base2}/api/accounts`, { headers: { "X-BEG-Key": app2.key } })).json()) as Array<{
+      accountKey: string;
+      avatar: string;
+    }>;
+    expect(listAfterReset.map((x) => [x.accountKey, x.avatar])).toEqual([
+      [acc1.accountKey, ""],
+      [acc2.accountKey, ""],
+    ]);
+  });
+
+  it("22. 兼容旧版 gacha.sqlite（无 account_prefs 表时自动建表且保留既有账号与记录）", () => {
+    const dataDir = mkTempDir("beg-p1-legacy-db-");
+    const dbPath = path.join(dataDir, "gacha.sqlite");
+    const legacyDb = new DatabaseSync(dbPath);
+    legacyDb.exec(`
+      CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+      INSERT INTO meta (key, value) VALUES ('schema_version', '1');
+      CREATE TABLE accounts (
+        account_key TEXT PRIMARY KEY,
+        region TEXT NOT NULL,
+        channel_master_id TEXT NOT NULL,
+        binding_uid TEXT NOT NULL,
+        role_id TEXT NOT NULL,
+        nickname TEXT NOT NULL DEFAULT '',
+        server_id TEXT NOT NULL DEFAULT '',
+        server_name TEXT NOT NULL DEFAULT '',
+        channel_name TEXT NOT NULL DEFAULT '',
+        source TEXT NOT NULL DEFAULT '',
+        updated_at INTEGER NOT NULL
+      );
+      CREATE TABLE records (
+        account_key TEXT NOT NULL,
+        feed TEXT NOT NULL,
+        seq_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        pool_type TEXT NOT NULL,
+        pool_id TEXT NOT NULL,
+        pool_name TEXT NOT NULL,
+        item_id TEXT NOT NULL,
+        item_name TEXT NOT NULL,
+        item_sub_type TEXT NOT NULL DEFAULT '',
+        rarity INTEGER NOT NULL,
+        is_free INTEGER NOT NULL,
+        is_new INTEGER NOT NULL,
+        gacha_ts TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        PRIMARY KEY (account_key, feed, seq_id)
+      ) WITHOUT ROWID;
+      CREATE TABLE pools (
+        pool_id TEXT PRIMARY KEY,
+        gacha_type TEXT NOT NULL,
+        pool_name TEXT NOT NULL,
+        pool_type TEXT NOT NULL,
+        up6_ids TEXT NOT NULL,
+        version_num TEXT NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE TABLE rerun_counts (
+        account_key TEXT NOT NULL,
+        type TEXT NOT NULL,
+        pool_id TEXT NOT NULL,
+        pool_name TEXT NOT NULL,
+        total_pull_count INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        PRIMARY KEY (account_key, type, pool_id)
+      ) WITHOUT ROWID;
+      INSERT INTO accounts VALUES ('cn_2_LEGACY1_ROLE1', 'cn', '2', 'LEGACY1', 'ROLE1', '旧库玩家', '1', 'China', 'bilibili服', 'cache', 1760000000000);
+    `);
+    legacyDb.close();
+
+    const store = GachaStore.open(dataDir);
+    try {
+      expect(store.listAccounts().map((a) => a.accountKey)).toEqual(["cn_2_LEGACY1_ROLE1"]);
+      expect(store.getAccountAvatar("cn_2_LEGACY1_ROLE1")).toBe("");
+      store.setAccountAvatar("cn_2_LEGACY1_ROLE1", "media/avatars/legacy.webp");
+      expect(store.getAccountAvatar("cn_2_LEGACY1_ROLE1")).toBe("media/avatars/legacy.webp");
+    } finally {
+      store.close();
+    }
   });
 });

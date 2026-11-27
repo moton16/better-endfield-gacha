@@ -2,6 +2,7 @@ import { useState } from "preact/hooks";
 import { CHAR_BEGINNER, CHAR_JOINT, CHAR_STANDARD } from "../../core/analysis/config.js";
 import type { PoolGroup } from "../api/types.js";
 import { barWidth, fmtMonthDay, fmtShortDateRange, fmtTs } from "../lib/bar.js";
+import { useMediaManifest } from "../lib/media.js";
 import { Avatar, bannerFor, MiniItemTile } from "./Avatar.js";
 import { HitRow } from "./HitRow.js";
 import { PendingRow } from "./PendingRow.js";
@@ -30,6 +31,7 @@ export function PoolSection({
   const hasWeaponRolls = group.kind === "weapon" && (group.weaponTenRolls?.length ?? 0) > 0;
   const [weaponView, setWeaponView] = useState<"ten" | "pity" | null>(null);
   const activeWeaponView = weaponView ?? (hasWeaponRolls ? "ten" : "pity");
+  useMediaManifest();
 
   if (group.total === 0) return null;
 
@@ -77,7 +79,10 @@ export function PoolSection({
               <h3>{group.title}</h3>
               {dateRange && <span class="pool-date">{dateRange}</span>}
               {missingUp && (
-                <span class="pool-warn-dot" title="缺少 UP 信息，未判定歪（可补 src/core/data/up-map.json）">
+                <span
+                  class="pool-warn-dot"
+                  title="缺少 UP 信息，未判定歪（可在数据目录补充 up-map.override.json 或更新 src/core/data/up-map.json）"
+                >
                   !
                 </span>
               )}

@@ -73,6 +73,7 @@ export function register(router: Router, deps: AppDeps): void {
       if (mode === "cache") {
         const res = await syncFromCache({
           store: deps.store,
+          dataDir: deps.dataDir,
           ...deps.cacheDiscover,
           filter: channel ? { channel } : {},
           fetch: deps.fetch,

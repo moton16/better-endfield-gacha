@@ -1,6 +1,6 @@
 import type { Provider } from "../../core/auth/passport.js";
 import { Vault } from "../../core/auth/vault.js";
-import { NoCredentialError, syncFromCache } from "../../core/route-a.js";
+import { CredentialExpiredError, NoCredentialError, syncFromCache } from "../../core/route-a.js";
 import { syncFromPassport } from "../../core/route-b.js";
 import { GachaStore } from "../../core/storage/store.js";
 import type { Command } from "../types.js";
@@ -103,6 +103,7 @@ export const sync: Command = {
     try {
       const res = await syncFromCache({
         store,
+        dataDir: ctx.dataDir(),
         extraDirs: ctx.strs("cache-dir"),
         filter,
         onProgress: (m) => console.log(`· ${m}`),
@@ -114,7 +115,7 @@ export const sync: Command = {
       return res.report.ok ? 0 : 4;
     } catch (err) {
       console.error(err instanceof Error ? err.message : String(err));
-      return err instanceof NoCredentialError ? 2 : 1;
+      return err instanceof NoCredentialError || err instanceof CredentialExpiredError ? 2 : 1;
     } finally {
       store.close();
     }

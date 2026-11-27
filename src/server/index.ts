@@ -52,6 +52,7 @@ export function createApp(o: AppOptions) {
           pools: store.getAllPools(),
           rerunChar: store.getRerunCounts(accountKey, "char"),
           rerunWeapon: store.getRerunCounts(accountKey, "weapon"),
+          dataDir: o.dataDir,
         })),
   };
 

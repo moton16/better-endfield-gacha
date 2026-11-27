@@ -6,7 +6,7 @@
  *             （必须传外层 bindingList[].uid；传 roles[].roleId 会返回 109）
  *
  * 响应的业务状态字段是 `status`（0=成功），不是 `code`。
- * 扫码登录（gen_scan/login → scan_status → token_by_scan_code）来自社区实现的协议描述，【未实测】。
+ * 扫码登录（gen_scan/login → scan_status → token_by_scan_code）已于 2026-11-26 真机实证全链路可用。
  */
 import { scrubUrl } from "../redact.js";
 
@@ -82,6 +82,20 @@ const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 const s = (v: unknown) => (v == null ? "" : String(v).trim());
 
+async function readHttpErrorMessage(res: Response): Promise<string> {
+  const text = await res.text().catch(() => "");
+  let msg = "";
+  if (text) {
+    try {
+      const j = JSON.parse(text);
+      msg = s(j?.msg ?? j?.message);
+    } catch {
+      // 非 JSON 响应体不透传原始文本，避免 HTML 错误页污染报错
+    }
+  }
+  return `HTTP ${res.status}${msg ? ` msg=${msg}` : ""}`;
+}
+
 async function call(
   stage: string,
   f: typeof fetch,
@@ -98,7 +112,7 @@ async function call(
   } catch (err) {
     throw new PassportError(stage, `网络错误：${err instanceof Error ? err.message : String(err)}`);
   }
-  if (!res.ok) throw new PassportError(stage, `HTTP ${res.status}`, res.status);
+  if (!res.ok) throw new PassportError(stage, await readHttpErrorMessage(res), res.status);
   let json: any;
   try {
     json = await res.json();
@@ -187,6 +201,28 @@ export async function listBindings(oauthToken: string, provider: Provider, f: ty
   return normalizeBindings(data);
 }
 
+const CHANNEL_LABELS: Record<string, string> = {
+  "1": "官服",
+  "2": "bilibili服",
+};
+
+/** 生成脱敏后的渠道摘要（绝不含 uid / roleId / nickname），供保险库展示。 */
+export function formatBindingsLabel(bindings: Binding[]): string {
+  const active = bindings.filter((b) => !b.isDeleted);
+  if (active.length === 0) return "无可用绑定";
+  const withRoles = active.filter((b) => b.roles.length > 0);
+  const target = withRoles.length > 0 ? withRoles : active;
+  return target
+    .map((b) => {
+      const ch =
+        b.channelName.trim() ||
+        CHANNEL_LABELS[b.channelMasterId] ||
+        (b.channelMasterId ? `渠道${b.channelMasterId}` : "未知渠道");
+      return `${ch} · ${b.roles.length}角色`;
+    })
+    .join(" / ");
+}
+
 /** 必须传外层 binding.uid（不是 roleId） */
 export async function u8TokenByUid(oauthToken: string, bindingUid: string, provider: Provider, f: typeof fetch = fetch): Promise<string> {
   const cfg = PROVIDERS[provider];
@@ -199,7 +235,7 @@ export async function u8TokenByUid(oauthToken: string, bindingUid: string, provi
   return token;
 }
 
-// ---------------- 扫码登录（未实测） ----------------
+// ---------------- 扫码登录（2026-11-26 真机实证） ----------------
 const SCAN = {
   gen: "https://as.hypergryph.com/general/v1/gen_scan/login",
   status: "https://as.hypergryph.com/general/v1/scan_status",
@@ -211,6 +247,11 @@ export interface ScanSession {
   scanUrl: string;
 }
 
+export type QrPollResult =
+  | { ok: true; state: "pending"; status: number; msg?: string }
+  | { ok: true; state: "confirmed"; scanCode: string }
+  | { ok: false; error: string; status?: number };
+
 export async function qrCreate(f: typeof fetch = fetch): Promise<ScanSession> {
   const data = await call("gen_scan", f, SCAN.gen, { method: "POST", body: "{}" });
   const scanId = s(data?.scanId);
@@ -218,18 +259,53 @@ export async function qrCreate(f: typeof fetch = fetch): Promise<ScanSession> {
   return { scanId, scanUrl: s(data?.scanUrl) };
 }
 
-/** 未扫码/未确认时服务端返回非 0 状态，属于正常轮询，返回 null */
-export async function qrPoll(scanId: string, f: typeof fetch = fetch): Promise<string | null> {
+export async function qrPollStatus(scanId: string, f: typeof fetch = fetch): Promise<QrPollResult> {
   let res: Response;
   try {
-    res = await f(`${SCAN.status}?scanId=${encodeURIComponent(scanId)}`, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(20_000) });
-  } catch {
-    return null;
+    res = await f(`${SCAN.status}?scanId=${encodeURIComponent(scanId)}`, {
+      headers: { "User-Agent": UA },
+      signal: AbortSignal.timeout(20_000),
+    });
+  } catch (err) {
+    return {
+      ok: false,
+      error: scrubUrl(`网络错误：${err instanceof Error ? err.message : String(err)}`),
+    };
   }
-  if (!res.ok) return null;
-  const json: any = await res.json().catch(() => null);
-  if (json?.status !== 0) return null;
-  return s(json?.data?.scanCode) || null;
+  if (!res.ok) {
+    return {
+      ok: false,
+      status: res.status,
+      error: scrubUrl(await readHttpErrorMessage(res)),
+    };
+  }
+  let json: any;
+  try {
+    json = await res.json();
+  } catch {
+    return { ok: false, status: res.status, error: "响应不是 JSON" };
+  }
+  if (typeof json?.status !== "number") {
+    return { ok: false, status: res.status, error: "响应缺少 status" };
+  }
+  if (json.status === 0) {
+    const scanCode = s(json?.data?.scanCode);
+    if (!scanCode) return { ok: false, status: 0, error: "响应缺少 scanCode" };
+    return { ok: true, state: "confirmed", scanCode };
+  }
+  const msg = s(json?.msg ?? json?.message);
+  return {
+    ok: true,
+    state: "pending",
+    status: json.status,
+    ...(msg ? { msg } : {}),
+  };
+}
+
+/** 未扫码/未确认时服务端返回非 0 状态，属于正常轮询，返回 null */
+export async function qrPoll(scanId: string, f: typeof fetch = fetch): Promise<string | null> {
+  const r = await qrPollStatus(scanId, f);
+  return r.ok && r.state === "confirmed" ? r.scanCode : null;
 }
 
 export async function qrExchange(scanCode: string, f: typeof fetch = fetch): Promise<string> {

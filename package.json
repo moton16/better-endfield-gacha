@@ -1,6 +1,6 @@
 {
   "name": "better-endfield-gacha",
-  "version": "0.1.0-dev",
+  "version": "0.1.0-rc.1",
   "description": "终末地抽卡链接提取与抽卡记录管理/分析工具（B 服 / 官服 / 国际服）",
   "license": "MIT",
   "private": true,
@@ -19,7 +19,8 @@
     "web:dev": "vite --config vite.config.ts",
     "web:build": "vite build --config vite.config.ts",
     "test": "vitest run",
-    "pack": "pwsh -NoProfile -File scripts/pack.ps1"
+    "pack": "pwsh -NoProfile -File scripts/pack.ps1",
+    "pack:tauri": "pwsh -NoProfile -File scripts/pack-tauri.ps1"
   },
   "devDependencies": {
     "@preact/preset-vite": "^2.10.6",

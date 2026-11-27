@@ -1,5 +1,12 @@
-import { describe, expect, it } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { describe, expect, it, vi } from "vitest";
+import { COMMANDS } from "../src/cli/commands/index.js";
+import { resolveHyToken } from "../src/cli/commands/login.js";
+import { makeContext } from "../src/cli/context.js";
 import {
+  formatBindingsLabel,
   grantOAuth,
   listBindings,
   normalizeBindings,
@@ -8,9 +15,12 @@ import {
   PROVIDERS,
   qrCreate,
   qrPoll,
+  qrPollStatus,
   qrWait,
   u8TokenByUid,
+  type Binding,
 } from "../src/core/auth/passport.js";
+import { Vault } from "../src/core/auth/vault.js";
 import { createFakePassport } from "./helpers/fake-passport.js";
 
 const noSleep = async () => {};
@@ -63,9 +73,23 @@ describe("grantOAuth 与状态字段校验", () => {
     expect((err as PassportError).stage).toBe("grant");
   });
 
-  it("HTTP 错误、非 JSON 响应与缺少 token 字段均抛出 PassportError", async () => {
+  it("HTTP 错误（含保留 JSON msg/message）、非 JSON 响应与缺少 token 字段均抛出 PassportError", async () => {
     const httpErr = (async () => new Response("err", { status: 502 })) as typeof fetch;
     await expect(grantOAuth(fakeHy, "hypergryph", httpErr)).rejects.toThrow(/HTTP 502/);
+
+    const httpJsonMsg = (async () =>
+      new Response(JSON.stringify({ status: 502, msg: "上游网关超时" }), {
+        status: 502,
+        headers: { "content-type": "application/json" },
+      })) as typeof fetch;
+    await expect(grantOAuth(fakeHy, "hypergryph", httpJsonMsg)).rejects.toThrow(/HTTP 502 msg=上游网关超时/);
+
+    const httpJsonMessage = (async () =>
+      new Response(JSON.stringify({ message: "bad request payload" }), {
+        status: 400,
+        headers: { "content-type": "application/json" },
+      })) as typeof fetch;
+    await expect(grantOAuth(fakeHy, "hypergryph", httpJsonMessage)).rejects.toThrow(/HTTP 400 msg=bad request payload/);
 
     const badJson = (async () => new Response("not-json", { status: 200 })) as typeof fetch;
     await expect(grantOAuth(fakeHy, "hypergryph", badJson)).rejects.toThrow(/响应不是 JSON/);
@@ -168,6 +192,174 @@ describe("扫码登录（QR）", () => {
     const err = await qrWait(s3, { f: srvTimeout.fetch, sleep: noSleep, timeoutMs: 300, intervalMs: 100 }).catch((e) => e);
     expect(err).toBeInstanceOf(PassportError);
     expect((err as PassportError).stage).toBe("scan_status");
+  });
+
+  it("qrPollStatus 准确区分 pending (status=100/101)、confirmed 与网络/HTTP/格式异常", async () => {
+    const srv = createFakePassport({ hytoken: fakeHy, bindings: [], qrConfirmAtPoll: 2 });
+    const session = await qrCreate(srv.fetch);
+
+    expect(await qrPollStatus(session.scanId, srv.fetch)).toEqual({
+      ok: true,
+      state: "pending",
+      status: 100,
+      msg: "waiting scan",
+    });
+    expect(await qrPollStatus(session.scanId, srv.fetch)).toEqual({
+      ok: true,
+      state: "confirmed",
+      scanCode: "SCANCODE-SYNTH-OK",
+    });
+
+    const scannedPending = (async () =>
+      new Response(JSON.stringify({ status: 101, msg: "已扫码，请在手机确认" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })) as typeof fetch;
+    expect(await qrPollStatus(session.scanId, scannedPending)).toEqual({
+      ok: true,
+      state: "pending",
+      status: 101,
+      msg: "已扫码，请在手机确认",
+    });
+
+    const netErr = (async () => {
+      throw new Error("ECONNRESET");
+    }) as typeof fetch;
+    expect(await qrPollStatus(session.scanId, netErr)).toEqual({
+      ok: false,
+      error: "网络错误：ECONNRESET",
+    });
+
+    const httpErr = (async () =>
+      new Response(JSON.stringify({ msg: "rate limited" }), {
+        status: 429,
+        headers: { "content-type": "application/json" },
+      })) as typeof fetch;
+    expect(await qrPollStatus(session.scanId, httpErr)).toEqual({
+      ok: false,
+      status: 429,
+      error: "HTTP 429 msg=rate limited",
+    });
+
+    const missingCode = (async () =>
+      new Response(JSON.stringify({ status: 0, data: {} }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })) as typeof fetch;
+    expect(await qrPollStatus(session.scanId, missingCode)).toEqual({
+      ok: false,
+      status: 0,
+      error: "响应缺少 scanCode",
+    });
+  });
+});
+
+describe("formatBindingsLabel（脱敏渠道摘要）", () => {
+  const mkBinding = (overrides: Partial<Binding>): Binding => ({
+    uid: "SENSITIVE_UID_999",
+    channelMasterId: "1",
+    channelName: "官服",
+    isOfficial: true,
+    isDefault: false,
+    isDeleted: false,
+    isBanned: false,
+    roles: [],
+    ...overrides,
+  });
+
+  it("优先展示未删除且有角色的绑定，并绝不泄露 uid / roleId / nickname", () => {
+    const bindings: Binding[] = [
+      mkBinding({ uid: "UID_DEL", channelMasterId: "1", channelName: "官服", isDeleted: true, roles: [{ roleId: "R_DEL", nickname: "删角", serverId: "1", serverName: "cn", level: 1, isDefault: false, isBanned: false }] }),
+      mkBinding({ uid: "UID_EMPTY_OFF", channelMasterId: "1", channelName: "官服", roles: [] }),
+      mkBinding({
+        uid: "UID_BILI_SECRET",
+        channelMasterId: "2",
+        channelName: "bilibili服",
+        roles: [{ roleId: "ROLE_SECRET_888", nickname: "敏感昵称", serverId: "1", serverName: "cn", level: 60, isDefault: false, isBanned: false }],
+      }),
+    ];
+    const label = formatBindingsLabel(bindings);
+    expect(label).toBe("bilibili服 · 1角色");
+    expect(label).not.toContain("UID_BILI_SECRET");
+    expect(label).not.toContain("ROLE_SECRET_888");
+    expect(label).not.toContain("敏感昵称");
+  });
+
+  it("多有效绑定以 / 拼接；全无角色时回退未删除绑定；全删除或空列表返回无可用绑定", () => {
+    const multi: Binding[] = [
+      mkBinding({ channelMasterId: "1", channelName: "", roles: [{ roleId: "R1", nickname: "A", serverId: "1", serverName: "cn", level: 1, isDefault: true, isBanned: false }] }),
+      mkBinding({ channelMasterId: "2", channelName: "bilibili服", roles: [{ roleId: "R2", nickname: "B", serverId: "1", serverName: "cn", level: 1, isDefault: false, isBanned: false }, { roleId: "R3", nickname: "C", serverId: "1", serverName: "cn", level: 1, isDefault: false, isBanned: false }] }),
+    ];
+    expect(formatBindingsLabel(multi)).toBe("官服 · 1角色 / bilibili服 · 2角色");
+
+    expect(formatBindingsLabel([mkBinding({ channelMasterId: "2", channelName: "" })])).toBe("bilibili服 · 0角色");
+    expect(formatBindingsLabel([])).toBe("无可用绑定");
+    expect(formatBindingsLabel([mkBinding({ isDeleted: true })])).toBe("无可用绑定");
+  });
+});
+
+describe("CLI login --qr 终端二维码与 --save 标签", () => {
+  it("resolveHyToken --qr 在终端打印半高块二维码与 scanUrl 并返回交换后的 token", async () => {
+    const scanUrl = "hypergryph://scan_login?scanId=0123456789abcdef0123456789abcdef";
+    const srv = createFakePassport({
+      hytoken: fakeHy,
+      bindings: [],
+      qrConfirmAtPoll: 1,
+      qrToken: "QR_CLI_HYTOKEN_SYNTH_01",
+      override: (url) => {
+        if (url.pathname === "/general/v1/gen_scan/login") {
+          return new Response(JSON.stringify({ status: 0, data: { scanId: "SCAN-SYNTH-1", scanUrl } }), {
+            headers: { "content-type": "application/json" },
+          });
+        }
+        return undefined;
+      },
+    });
+    const logs: string[] = [];
+    vi.stubGlobal("fetch", srv.fetch);
+    const logSpy = vi.spyOn(console, "log").mockImplementation((...args) => {
+      logs.push(args.map(String).join(" "));
+    });
+    try {
+      const token = await resolveHyToken(makeContext(["login", "--qr"]));
+      expect(token).toBe("QR_CLI_HYTOKEN_SYNTH_01");
+      const joined = logs.join("\n");
+      expect(joined).toContain("请用森空岛/鹰角 App 扫码确认登录");
+      expect(joined).toContain(scanUrl);
+      expect(joined).toMatch(/[█▀▄]/);
+    } finally {
+      logSpy.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it.skipIf(process.platform !== "win32")("login --save 将 formatBindingsLabel 写入 Vault", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "beg-login-save-"));
+    const prevHy = process.env.BEG_HYTOKEN;
+    const srv = createFakePassport({
+      hytoken: fakeHy,
+      bindings: [
+        { uid: "OFF_EMPTY", channelMasterId: 1, channelName: "官服", roles: [], u8Token: "U8_1" },
+        { uid: "BILI_1", channelMasterId: 2, channelName: "bilibili服", roles: [{ roleId: "R_1", nickName: "玩家甲" }], u8Token: "U8_2" },
+      ],
+    });
+    vi.stubGlobal("fetch", srv.fetch);
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      process.env.BEG_HYTOKEN = fakeHy;
+      const loginCmd = COMMANDS.find((c) => c.name === "login")!;
+      const code = await loginCmd.run(makeContext(["login", "--save", "--data-dir", tmpDir]));
+      expect(code).toBe(0);
+      const saved = new Vault(tmpDir).list();
+      expect(saved).toHaveLength(1);
+      expect(saved[0]?.label).toBe("bilibili服 · 1角色");
+    } finally {
+      if (prevHy === undefined) delete process.env.BEG_HYTOKEN;
+      else process.env.BEG_HYTOKEN = prevHy;
+      logSpy.mockRestore();
+      vi.unstubAllGlobals();
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 });
 

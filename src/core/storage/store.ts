@@ -62,6 +62,11 @@ CREATE TABLE IF NOT EXISTS rerun_counts (
   updated_at INTEGER NOT NULL,
   PRIMARY KEY (account_key, type, pool_id)
 ) WITHOUT ROWID;
+CREATE TABLE IF NOT EXISTS account_prefs (
+  account_key TEXT PRIMARY KEY,
+  avatar TEXT NOT NULL DEFAULT '',
+  updated_at INTEGER NOT NULL
+);
 `;
 
 export interface RecordQuery {
@@ -87,6 +92,11 @@ export class GachaStore {
   }
 
   close(): void {
+    try {
+      this.db.exec("PRAGMA wal_checkpoint(TRUNCATE);");
+    } catch {
+      /* ignore */
+    }
     this.db.close();
   }
 
@@ -343,4 +353,40 @@ export class GachaStore {
     }));
   }
   // ==== W3 END
+
+  // ==== P1 BEGIN
+  getAccountAvatar(accountKey: string): string {
+    const row = this.db
+      .prepare("SELECT avatar FROM account_prefs WHERE account_key = ?")
+      .get(accountKey) as { avatar: string } | undefined;
+    return row?.avatar ?? "";
+  }
+
+  getAccountAvatars(): Map<string, string> {
+    const rows = this.db
+      .prepare("SELECT account_key, avatar FROM account_prefs")
+      .all() as Array<{ account_key: string; avatar: string }>;
+    const avatars = new Map<string, string>();
+    for (const r of rows) {
+      avatars.set(r.account_key, r.avatar);
+    }
+    return avatars;
+  }
+
+  setAccountAvatar(accountKey: string, avatar: string): void {
+    if (avatar === "") {
+      this.db.prepare("DELETE FROM account_prefs WHERE account_key = ?").run(accountKey);
+      return;
+    }
+    this.db
+      .prepare(
+        `INSERT INTO account_prefs (account_key, avatar, updated_at)
+         VALUES (?, ?, ?)
+         ON CONFLICT(account_key) DO UPDATE SET
+           avatar = excluded.avatar,
+           updated_at = excluded.updated_at`,
+      )
+      .run(accountKey, avatar, Date.now());
+  }
+  // ==== P1 END
 }

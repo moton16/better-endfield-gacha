@@ -1,5 +1,32 @@
+import { useState } from "preact/hooks";
 import type { AccountGlobalSummary, AccountSummary } from "../api/types.js";
 import { maskName } from "../lib/bar.js";
+import { resolveAccountAvatarUrl, useMediaManifest } from "../lib/media.js";
+
+const AVATAR_KEY_PREFIX = "beg.avatar.";
+
+export function readStoredAvatar(accountKey: string): string {
+  if (!accountKey) return "";
+  try {
+    return localStorage.getItem(`${AVATAR_KEY_PREFIX}${accountKey}`) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+export function writeStoredAvatar(accountKey: string, avatar: string): void {
+  if (!accountKey) return;
+  try {
+    const key = `${AVATAR_KEY_PREFIX}${accountKey}`;
+    if (avatar) {
+      localStorage.setItem(key, avatar);
+    } else {
+      localStorage.removeItem(key);
+    }
+  } catch {
+    // 忽略受限环境下的 localStorage 异常
+  }
+}
 
 export function Header({
   accounts,
@@ -9,6 +36,7 @@ export function Header({
   onTogglePrivacy,
   onOpenSync,
   onOpenData,
+  onOpenAvatarPicker,
   mock,
   globalSummary,
   onToast,
@@ -20,15 +48,21 @@ export function Header({
   onTogglePrivacy: () => void;
   onOpenSync: () => void;
   onOpenData: () => void;
+  onOpenAvatarPicker: () => void;
   mock: boolean;
   globalSummary?: AccountGlobalSummary | null;
   onToast?: (msg: string) => void;
 }) {
+  useMediaManifest();
   const current = accounts.find((a) => a.accountKey === accountKey);
   const totalDraws = globalSummary?.totalDraws ?? current?.counts.draws ?? 0;
   const total6 = globalSummary?.total6 ?? 0;
   const totalFree = globalSummary?.totalFree ?? 0;
   const uidDisplay = current ? (privacy ? current.maskedKey : current.accountKey.slice(-10)) : "";
+  const rawAvatar = current ? (current.avatar || readStoredAvatar(current.accountKey)) : "";
+  const avatarUrl = !privacy && rawAvatar ? resolveAccountAvatarUrl(rawAvatar) : null;
+  const [failedAvatarUrl, setFailedAvatarUrl] = useState<string | null>(null);
+  const effectiveAvatarUrl = avatarUrl && avatarUrl !== failedAvatarUrl ? avatarUrl : null;
 
   async function handleCopyId() {
     if (!current) return;
@@ -62,11 +96,28 @@ export function Header({
       {accounts.length > 0 && current ? (
         <>
           <div class="player-top">
-            <div class="header-avatar" aria-hidden="true">
+            <button
+              type="button"
+              class="header-avatar"
+              aria-label="更换头像"
+              title="点击更换头像"
+              onClick={onOpenAvatarPicker}
+            >
               <span class="header-avatar-inner">
-                {privacy ? "终" : ([...current.nickname][0] ?? "终")}
+                {privacy ? (
+                  "终"
+                ) : effectiveAvatarUrl ? (
+                  <img
+                    class="header-avatar-img"
+                    src={effectiveAvatarUrl}
+                    alt=""
+                    onError={() => setFailedAvatarUrl(effectiveAvatarUrl)}
+                  />
+                ) : (
+                  [...current.nickname][0] ?? "终"
+                )}
               </span>
-            </div>
+            </button>
 
             <div class="player-info">
               <div class="player-name-row">

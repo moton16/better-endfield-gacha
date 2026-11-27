@@ -28,10 +28,16 @@ export interface AccountSummary {
   nickname: string;
   source: string;
   updatedAt: number;
+  avatar?: string;
   counts: {
     total: number;
     draws: number;
   };
+}
+
+export interface AccountAvatarResponse {
+  accountKey: string;
+  avatar: string;
 }
 
 export interface RecordItem {
@@ -105,8 +111,32 @@ export interface PassportInspectResponse {
 export interface VaultSession {
   id: string;
   provider: string;
+  label?: string;
   createdAt: number;
 }
+
+export interface PassportQrCreateResponse {
+  scanId: string;
+  scanUrl: string;
+}
+
+export type PassportQrStatusResponse =
+  | {
+      status: "pending";
+      consecutiveErrors?: number;
+      transientError?: string;
+      hint?: string;
+    }
+  | {
+      status: "error";
+      error: string;
+    }
+  | {
+      status: "confirmed";
+      vaultId?: string;
+      label: string;
+      bindings: PassportBindingSummary[];
+    };
 
 export interface SyncFeedSummary {
   label: string;

@@ -3,10 +3,13 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../src/web/App.js";
 import { clearKey, setKey } from "../src/web/api/client.js";
-import { resetMockState } from "../src/web/api/mock.js";
+import { mockFetch, resetMockState } from "../src/web/api/mock.js";
+import { cropImageFileToDataUrl } from "../src/web/components/AvatarPickerDialog.js";
+import { resetMediaManifestForTest, setMediaManifestForTest } from "../src/web/lib/media.js";
 
 beforeEach(() => {
   resetMockState();
+  resetMediaManifestForTest();
   clearKey();
   sessionStorage.clear();
   localStorage.clear();
@@ -16,6 +19,8 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+  resetMediaManifestForTest();
   clearKey();
   sessionStorage.clear();
   localStorage.clear();
@@ -321,5 +326,450 @@ describe("Web UI mock mode & interactions", () => {
     expect(container.querySelectorAll("script").length).toBe(0);
     expect(container.querySelectorAll("img").length).toBe(0);
     expect((window as unknown as { __begXss?: unknown }).__begXss).toBeUndefined();
+  });
+
+  it("handles Route B QR login: renders inline SVG, polls to confirmed, updates vault label, and auto-triggers sync", async () => {
+    render(<App />);
+    await screen.findByText("合成特许寻访二期");
+
+    fireEvent.click(screen.getByRole("button", { name: "同步" }));
+    fireEvent.click(screen.getByRole("tab", { name: "鹰角通行证" }));
+
+    const vaultSelect = screen.getByLabelText("已保存的会话") as HTMLSelectElement;
+    await waitFor(() => {
+      expect(vaultSelect.value).toBe("aabbccdd");
+    });
+    expect(vaultSelect.options[0]?.textContent).toContain("bilibili服 · 1角色 · aabbccdd");
+
+    fireEvent.click(screen.getByRole("button", { name: "扫码登录" }));
+
+    const qrSvg = await screen.findByRole("img", { name: "扫码登录二维码" });
+    const viewBox = qrSvg.getAttribute("viewBox") ?? "";
+    const parts = viewBox.split(" ").map(Number);
+    expect(parts.length).toBe(4);
+    expect(parts[2]).toBeGreaterThanOrEqual(25);
+    expect(parts[2]).toBe(parts[3]);
+    expect(qrSvg.querySelectorAll("rect").length).toBe(1);
+    expect(qrSvg.querySelector("rect")?.getAttribute("fill")).toBe("#ffffff");
+    const paths = qrSvg.querySelectorAll("path");
+    expect(paths.length).toBe(1);
+    expect(paths[0]?.getAttribute("fill")).toBe("#000000");
+    expect(paths[0]?.getAttribute("d")?.startsWith("M")).toBe(true);
+    expect(screen.getByRole("dialog").querySelectorAll("img").length).toBe(0);
+
+    // Wait for confirmed -> vault updated & selected -> auto-sync finishes
+    expect(await screen.findByText(/绑定列表（共 1 项）/)).toBeTruthy();
+    await waitFor(() => {
+      expect(vaultSelect.value).toBe("eeff0011");
+    });
+    const selectedOpt = vaultSelect.options[vaultSelect.selectedIndex];
+    expect(selectedOpt?.textContent).toContain("bilibili服 · 1角色 · eeff0011");
+    expect(await screen.findByText(/✓ 特许寻访：拉取 10，新增 3/)).toBeTruthy();
+  });
+
+  it("handles Route A 40100 fallback button, QR error/expired + retry, and timer cleanup on cancel", async () => {
+    history.replaceState(null, "", "/");
+    setKey("qr-error-test-key");
+
+    let qrPollCount = 0;
+    let qrScan2Polls = 0;
+    let qrCreateCount = 0;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = (init?.method ?? "GET").toUpperCase();
+      if (url === "/api/accounts") return new Response("[]", { status: 200 });
+      if (url === "/api/cache/scan") {
+        return new Response(JSON.stringify({ locations: [], credentials: [], errors: [] }), { status: 200 });
+      }
+      if (url === "/api/passport/vault" && method === "GET") {
+        return new Response("[]", { status: 200 });
+      }
+      if (url === "/api/sync" && method === "POST") {
+        return new Response(JSON.stringify({ jobId: "j-expired" }), { status: 200 });
+      }
+      if (url === "/api/jobs/j-expired") {
+        return new Response(
+          JSON.stringify({
+            id: "j-expired",
+            kind: "sync",
+            state: "error",
+            progress: ["使用缓存凭据 11aa22bb"],
+            error: "接口返回 code=40100 msg=token已过期",
+            startedAt: 1760000000000,
+          }),
+          { status: 200 },
+        );
+      }
+      if (url === "/api/passport/qr" && method === "POST") {
+        qrCreateCount += 1;
+        return new Response(
+          JSON.stringify({
+            scanId: `SCAN_${qrCreateCount}`,
+            scanUrl: `hypergryph://scan_login?scanId=SCAN_${qrCreateCount}`,
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.startsWith("/api/passport/qr/") && method === "GET") {
+        qrPollCount += 1;
+        if (url.endsWith("/SCAN_1")) {
+          return new Response(
+            JSON.stringify({ error: "qr_expired", message: "扫码会话不存在或已过期，请重新生成二维码" }),
+            { status: 404 },
+          );
+        }
+        qrScan2Polls += 1;
+        if (qrScan2Polls === 1) {
+          return new Response(
+            JSON.stringify({ status: "pending", consecutiveErrors: 1, transientError: "网络超时" }),
+            { status: 200 },
+          );
+        }
+        return new Response(
+          JSON.stringify({ status: "error", error: "轮询异常，请重新生成二维码" }),
+          { status: 200 },
+        );
+      }
+      return new Response("{}", { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "同步数据" }));
+
+    // Route A error containing 40100 shows convenience button -> switches to passport tab
+    fireEvent.click(screen.getByRole("button", { name: "开始同步" }));
+    const fallbackBtn = await screen.findByRole("button", { name: "改用鹰角通行证扫码" });
+    fireEvent.click(fallbackBtn);
+    const passportTab = screen.getByRole("tab", { name: "鹰角通行证" });
+    expect(passportTab.getAttribute("aria-selected")).toBe("true");
+
+    // Test QR 404 expired, pending transientError, status==="error" stop polling + retry, and cancel cleans up timers
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      fireEvent.click(screen.getByRole("button", { name: "扫码登录" }));
+      await screen.findByRole("img", { name: "扫码登录二维码" });
+
+      // Advance 2000ms for poll -> gets 404 expired
+      await vi.advanceTimersByTimeAsync(2100);
+      expect(await screen.findByText(/扫码会话不存在或已过期/)).toBeTruthy();
+      expect(qrPollCount).toBe(1);
+
+      // Polling stopped after 404 (advancing another 5s triggers 0 more polls)
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(qrPollCount).toBe(1);
+
+      // Retry creates SCAN_2 -> poll 1 returns transientError -> keeps polling -> poll 2 returns status:"error" -> stops
+      fireEvent.click(screen.getByRole("button", { name: "重新生成二维码" }));
+      await screen.findByRole("img", { name: "扫码登录二维码" });
+      expect(qrCreateCount).toBe(2);
+      await vi.advanceTimersByTimeAsync(2100);
+      expect(await screen.findByText(/网络波动，正在重试（第 1 次）：网络超时/)).toBeTruthy();
+      expect(qrPollCount).toBe(2);
+
+      await vi.advanceTimersByTimeAsync(2100);
+      expect(await screen.findByText(/轮询异常，请重新生成二维码/)).toBeTruthy();
+      expect(qrPollCount).toBe(3);
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(qrPollCount).toBe(3);
+
+      // Retry creates SCAN_3 -> clicking 取消扫码 cleans up timer so 0 polls occur
+      fireEvent.click(screen.getByRole("button", { name: "重新生成二维码" }));
+      await screen.findByRole("img", { name: "扫码登录二维码" });
+      expect(qrCreateCount).toBe(3);
+
+      fireEvent.click(screen.getByRole("button", { name: "取消扫码" }));
+      expect(screen.queryByRole("img", { name: "扫码登录二维码" })).toBeNull();
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(qrPollCount).toBe(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("opens AvatarPickerDialog, shows empty-pack note, persists preset/operator avatars per accountKey with privacy mask, and resets to initial", async () => {
+    const { container } = render(<App />);
+    await screen.findByText("合成特许寻访二期");
+
+    // 1. Default state: privacy=true -> .header-avatar is a button showing "终" with 0 <img>
+    const avatarBtn = screen.getByRole("button", { name: "更换头像" });
+    expect(avatarBtn.textContent).toBe("终");
+    expect(avatarBtn.querySelector("img")).toBeNull();
+
+    // Open picker when asset pack is empty -> shows polite fallback note & disabled reset
+    fireEvent.click(avatarBtn);
+    const dialog = screen.getByRole("dialog", { name: "更换头像" });
+    expect(
+      within(dialog).getByText("当前未装入预设游戏头像资源包，可使用本地图片裁剪上传"),
+    ).toBeTruthy();
+    expect((within(dialog).getByRole("button", { name: "恢复默认" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(within(dialog).getByRole("button", { name: "关闭头像选择弹窗" }));
+    expect(screen.queryByRole("dialog", { name: "更换头像" })).toBeNull();
+
+    // 2. Load manifest presets + operators
+    setMediaManifestForTest({
+      version: 1,
+      avatars: ["preset_endmin"],
+      chars: ["chr_0016_laevat"],
+      weapons: [],
+      boxes: [],
+      banners: {},
+      itemAlias: {},
+    });
+
+    // Pick preset avatar for Account A while privacy=true -> persisted, yet Header remains masked as "终"
+    fireEvent.click(screen.getByRole("button", { name: "更换头像" }));
+    const pickerA = screen.getByRole("dialog", { name: "更换头像" });
+    fireEvent.click(within(pickerA).getByRole("button", { name: /preset_endmin/ }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "更换头像" })).toBeNull();
+    });
+    expect(localStorage.getItem("beg.avatar.cn_2_SYNTHUID001_SYNTHROLE001")).toBe(
+      "media/avatars/preset_endmin.webp",
+    );
+    const mockAccountsAfterA = await mockFetch<Array<{ accountKey: string; avatar?: string }>>("/api/accounts");
+    expect(mockAccountsAfterA.find((a) => a.accountKey === "cn_2_SYNTHUID001_SYNTHROLE001")?.avatar).toBe(
+      "media/avatars/preset_endmin.webp",
+    );
+
+    // Privacy still ON -> .header-avatar MUST NOT render <img>, must show "终"
+    expect(container.querySelector(".header-avatar img")).toBeNull();
+    expect(screen.getByRole("button", { name: "更换头像" }).textContent).toBe("终");
+
+    // Toggle privacy OFF -> .header-avatar shows preset <img>
+    fireEvent.click(screen.getByRole("button", { name: "切换隐私遮罩" }));
+    const imgA = container.querySelector(".header-avatar img.header-avatar-img") as HTMLImageElement | null;
+    expect(imgA).not.toBeNull();
+    expect(imgA?.getAttribute("src")).toBe("./media/avatars/preset_endmin.webp");
+
+    // Toggle privacy back ON -> <img> hidden back to "终", then OFF again -> <img> restored
+    fireEvent.click(screen.getByRole("button", { name: "切换隐私遮罩" }));
+    expect(container.querySelector(".header-avatar img")).toBeNull();
+    expect(screen.getByRole("button", { name: "更换头像" }).textContent).toBe("终");
+    fireEvent.click(screen.getByRole("button", { name: "切换隐私遮罩" }));
+    expect(container.querySelector(".header-avatar img")?.getAttribute("src")).toBe(
+      "./media/avatars/preset_endmin.webp",
+    );
+
+    // 3. Account switching isolation: Account B has no avatar yet -> shows initial char "合"
+    fireEvent.change(screen.getByLabelText("切换账号"), {
+      target: { value: "cn_1_SYNTHUID002_SYNTHROLE002" },
+    });
+    await screen.findByText("合成官服特许池");
+    expect(container.querySelector(".header-avatar img")).toBeNull();
+    expect(screen.getByRole("button", { name: "更换头像" }).textContent).toBe("合");
+
+    // Set operator avatar on Account B
+    fireEvent.click(screen.getByRole("button", { name: "更换头像" }));
+    const pickerB = screen.getByRole("dialog", { name: "更换头像" });
+    fireEvent.click(within(pickerB).getByRole("button", { name: /chr_0016_laevat/ }));
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "更换头像" })).toBeNull();
+    });
+    expect(localStorage.getItem("beg.avatar.cn_1_SYNTHUID002_SYNTHROLE002")).toBe(
+      "media/chars/chr_0016_laevat.webp",
+    );
+    expect(container.querySelector(".header-avatar img")?.getAttribute("src")).toBe(
+      "./media/chars/chr_0016_laevat.webp",
+    );
+
+    // Switch back to Account A -> Account A retains preset avatar
+    fireEvent.change(screen.getByLabelText("切换账号"), {
+      target: { value: "cn_2_SYNTHUID001_SYNTHROLE001" },
+    });
+    await screen.findByText("合成特许寻访二期");
+    expect(container.querySelector(".header-avatar img")?.getAttribute("src")).toBe(
+      "./media/avatars/preset_endmin.webp",
+    );
+
+    // 4. Reset Account A to default -> removes avatar & restores initial char "合"
+    fireEvent.click(screen.getByRole("button", { name: "更换头像" }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: "更换头像" })).getByRole("button", { name: "恢复默认" }));
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "更换头像" })).toBeNull();
+    });
+    expect(localStorage.getItem("beg.avatar.cn_2_SYNTHUID001_SYNTHROLE001")).toBeNull();
+    expect(container.querySelector(".header-avatar img")).toBeNull();
+    expect(screen.getByRole("button", { name: "更换头像" }).textContent).toBe("合");
+  });
+
+  it("crops uploaded image to <= 64 KB DataURL, rejects invalid/oversized payloads, and mirrors real-mode PUT safely", async () => {
+    // Unit-check cropImageFileToDataUrl rejection on invalid MIME / SVG / empty
+    await expect(cropImageFileToDataUrl(new File([], "empty.png", { type: "image/png" }))).rejects.toThrow(/非空/);
+    await expect(cropImageFileToDataUrl(new File(["txt"], "a.txt", { type: "text/plain" }))).rejects.toThrow(/不支持/);
+    await expect(
+      cropImageFileToDataUrl(new File(["<svg/>"], "a.svg", { type: "image/svg+xml" })),
+    ).rejects.toThrow(/SVG/);
+
+    // Mock PUT /api/accounts/:key/avatar validation checks
+    await expect(
+      mockFetch("/api/accounts/cn_2_SYNTHUID001_SYNTHROLE001/avatar", {
+        method: "PUT",
+        body: { avatar: "https://example.com/a.webp" },
+      }),
+    ).rejects.toThrow(/头像格式无效/);
+    await expect(
+      mockFetch("/api/accounts/cn_2_SYNTHUID001_SYNTHROLE001/avatar", {
+        method: "PUT",
+        body: { avatar: "data:image/svg+xml;base64,PHN2Zz4=" },
+      }),
+    ).rejects.toThrow(/头像格式无效/);
+    await expect(
+      mockFetch("/api/accounts/cn_2_SYNTHUID001_SYNTHROLE001/avatar", {
+        method: "PUT",
+        body: { avatar: "media/avatars/../secret.webp" },
+      }),
+    ).rejects.toThrow(/头像格式无效/);
+    await expect(
+      mockFetch("/api/accounts/cn_2_SYNTHUID001_SYNTHROLE001/avatar", {
+        method: "PUT",
+        body: { avatar: `data:image/webp;base64,${"A".repeat(64 * 1024)}` },
+      }),
+    ).rejects.toThrow(/64 KB/);
+
+    // Mock 2D canvas + createImageBitmap to test center-square crop & quality step-down <= 64 KB
+    const drawImage = vi.fn();
+    const clearRect = vi.fn();
+    const fillRect = vi.fn();
+    const getContextSpy = vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(
+      () =>
+        ({
+          drawImage,
+          clearRect,
+          fillRect,
+          fillStyle: "#ffffff",
+        }) as unknown as CanvasRenderingContext2D,
+    );
+
+    const smallWebp = `data:image/webp;base64,${"A".repeat(120)}`;
+    const oversizedWebp = `data:image/webp;base64,${"B".repeat(70 * 1024)}`;
+    let toDataUrlCall = 0;
+    const toDataUrlSpy = vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockImplementation(() => {
+      toDataUrlCall += 1;
+      // First attempt (128x128 q=0.88) oversized -> steps down to q=0.76 and succeeds
+      return toDataUrlCall === 1 ? oversizedWebp : smallWebp;
+    });
+
+    const bmpClose = vi.fn();
+    vi.stubGlobal(
+      "createImageBitmap",
+      vi.fn(async () => ({ width: 200, height: 100, close: bmpClose })),
+    );
+
+    const cropped = await cropImageFileToDataUrl(
+      new File(["fake-png"], "wide.png", { type: "image/png" }),
+    );
+    expect(cropped).toBe(smallWebp);
+    expect(Buffer.byteLength(cropped, "utf8")).toBeLessThanOrEqual(64 * 1024);
+    expect(toDataUrlCall).toBe(2);
+    // Center-square crop on 200x100: sx=50, sy=0, side=100 -> 128x128
+    expect(drawImage).toHaveBeenCalledWith(expect.anything(), 50, 0, 100, 100, 0, 0, 128, 128);
+    expect(bmpClose).toHaveBeenCalled();
+
+    // Always oversized -> rejects cleanly
+    toDataUrlSpy.mockImplementation(() => oversizedWebp);
+    await expect(
+      cropImageFileToDataUrl(new File(["fake-png"], "huge.png", { type: "image/png" })),
+    ).rejects.toThrow(/超过 64 KB/);
+
+    // Invalid non-raster DataURL -> rejects cleanly
+    toDataUrlSpy.mockImplementation(() => "data:image/svg+xml;base64,PHN2Zz4=");
+    await expect(
+      cropImageFileToDataUrl(new File(["fake-png"], "svg.png", { type: "image/png" })),
+    ).rejects.toThrow(/超过 64 KB/);
+
+    // Now test full UI upload flow + real-mode PUT /api/accounts/:key/avatar + localStorage error tolerance
+    toDataUrlCall = 0;
+    toDataUrlSpy.mockImplementation(() => smallWebp);
+    history.replaceState(null, "", "/");
+    setKey("avatar-real-key");
+    const putCalls: Array<{ url: string; body: string | null }> = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = (init?.method ?? "GET").toUpperCase();
+      if (url === "/api/accounts") {
+        return new Response(
+          JSON.stringify([
+            {
+              accountKey: "cn_2_SYNTHUID001_SYNTHROLE001",
+              maskedKey: "cn_2_#11aa22bb",
+              region: "cn",
+              channelName: "bilibili服",
+              nickname: "合成测试账号A",
+              source: "cache",
+              updatedAt: 1760000090000,
+              avatar: "",
+              counts: { total: 10, draws: 10 },
+            },
+          ]),
+          { status: 200 },
+        );
+      }
+      if (url.includes("/analysis")) {
+        return new Response(
+          JSON.stringify({
+            accountKey: "cn_2_SYNTHUID001_SYNTHROLE001",
+            generatedAt: 1760000100000,
+            overview: {
+              limited: { total: 0, count6: 0, offBanner: 0, upCount: 0, avgPity6: null, avgCostPerUp: null, badges: [], luckCounts: { ou: 0, fei: 0 } },
+              weapon: { total: 0, count6: 0, offBanner: 0, upCount: 0, avgPity6: null, avgCostPerUp: null, badges: [], luckCounts: { ou: 0, fei: 0 } },
+              standard: { total: 0, count6: 0, offBanner: 0, upCount: 0, avgPity6: null, avgCostPerUp: null, badges: [], luckCounts: { ou: 0, fei: 0 } },
+              beginner: { total: 0, count6: 0, offBanner: 0, upCount: 0, avgPity6: null, avgCostPerUp: null, badges: [], luckCounts: { ou: 0, fei: 0 } },
+            },
+            groups: [],
+            notes: [],
+          }),
+          { status: 200 },
+        );
+      }
+      if (url === "/api/accounts/cn_2_SYNTHUID001_SYNTHROLE001/avatar" && method === "PUT") {
+        putCalls.push({ url, body: typeof init?.body === "string" ? init.body : null });
+        return new Response(
+          JSON.stringify({ accountKey: "cn_2_SYNTHUID001_SYNTHROLE001", avatar: smallWebp }),
+          { status: 200 },
+        );
+      }
+      return new Response("{}", { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const setItemSpy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("QuotaExceededError");
+    });
+
+    const { container } = render(<App />);
+    await screen.findByText("当前分类下暂无抽卡记录");
+
+    // Toggle privacy off first
+    fireEvent.click(screen.getByRole("button", { name: "切换隐私遮罩" }));
+    fireEvent.click(screen.getByRole("button", { name: "更换头像" }));
+    const fileInput = screen.getByLabelText(/本地图片裁剪上传/) as HTMLInputElement;
+
+    // Upload invalid file first -> shows alert inside dialog and stays open
+    fireEvent.change(fileInput, {
+      target: { files: [new File(["bad"], "bad.txt", { type: "text/plain" })] },
+    });
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    expect(screen.getByRole("dialog", { name: "更换头像" })).toBeTruthy();
+
+    // Upload valid image -> crops, sends PUT, ignores localStorage throw, updates Header <img>
+    fireEvent.change(fileInput, {
+      target: { files: [new File(["ok"], "ok.png", { type: "image/png" })] },
+    });
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "更换头像" })).toBeNull();
+    });
+    expect(putCalls).toHaveLength(1);
+    expect(JSON.parse(putCalls[0]!.body ?? "{}")).toEqual({ avatar: smallWebp });
+    expect(container.querySelector(".header-avatar img")?.getAttribute("src")).toBe(smallWebp);
+
+    // Privacy back on -> hides cropped DataURL <img> cleanly back to "终"
+    fireEvent.click(screen.getByRole("button", { name: "切换隐私遮罩" }));
+    expect(container.querySelector(".header-avatar img")).toBeNull();
+    expect(screen.getByRole("button", { name: "更换头像" }).textContent).toBe("终");
+
+    setItemSpy.mockRestore();
+    getContextSpy.mockRestore();
+    toDataUrlSpy.mockRestore();
   });
 });

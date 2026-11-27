@@ -1,12 +1,7 @@
-/** 预留按 itemId 解析仓库内置图标（如 icons/<itemId>.webp），当前退回首字色块 */
-export function iconFor(_itemId: string): string | null {
-  return null;
-}
+import { useState } from "preact/hooks";
+import { iconFor, useMediaManifest } from "../lib/media.js";
 
-/** 预留按 poolId 解析仓库内置卡池头图（如 banners/<poolId>.webp），当前退回渐变纹样 */
-export function bannerFor(_poolId: string): string | null {
-  return null;
-}
+export { bannerFor, iconFor } from "../lib/media.js";
 
 export function Avatar({
   name,
@@ -23,15 +18,19 @@ export function Avatar({
   isEmptyFree?: boolean;
   size?: "md" | "lg";
 }) {
-  const icon = itemId ? iconFor(itemId) : null;
+  useMediaManifest();
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const rawIcon = itemId ? iconFor(itemId) : null;
+  const icon = rawIcon && rawIcon !== failedSrc ? rawIcon : null;
   const sizeCls = size === "lg" ? "avatar-lg" : "";
   if (icon) {
     return (
       <img
-        class={`avatar ${sizeCls} ${rarity === 6 ? "r6" : "q"}`}
+        class={`avatar ${sizeCls} ${rarity === 6 ? (isUp === false ? "r6 off-tone" : "r6") : "q"}`}
         src={icon}
         alt=""
         aria-hidden="true"
+        onError={() => setFailedSrc(icon)}
       />
     );
   }
@@ -71,7 +70,10 @@ export function MiniItemTile({
   size?: "xs" | "sm" | "md";
   bare?: boolean;
 }) {
-  const icon = itemId ? iconFor(itemId) : null;
+  useMediaManifest();
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const rawIcon = itemId ? iconFor(itemId) : null;
+  const icon = rawIcon && rawIcon !== failedSrc ? rawIcon : null;
   const initial = [...(name || itemId || "?")][0] ?? "?";
   const rankCls = bare ? "tile-neutral" : isGift || rarity >= 6 ? "tile-ssr" : "tile-sr";
   const sizeCls = `tile-${size}`;
@@ -85,7 +87,13 @@ export function MiniItemTile({
       aria-label={titleText}
     >
       {icon ? (
-        <img class="mini-tile-img" src={icon} alt="" aria-hidden="true" />
+        <img
+          class="mini-tile-img"
+          src={icon}
+          alt=""
+          aria-hidden="true"
+          onError={() => setFailedSrc(icon)}
+        />
       ) : (
         <span class="mini-tile-char" aria-hidden="true">
           {initial}

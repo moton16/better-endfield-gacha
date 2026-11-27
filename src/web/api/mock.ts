@@ -3,10 +3,13 @@ import analysisSample from "../mock/analysis.sample.json";
 import syncJobSample from "../mock/sync-job.json";
 import type {
   AccountAnalysis,
+  AccountAvatarResponse,
   AccountSummary,
   CacheScanResponse,
   ImportResponse,
   PassportInspectResponse,
+  PassportQrCreateResponse,
+  PassportQrStatusResponse,
   SyncJob,
   VaultSession,
 } from "./types.js";
@@ -15,14 +18,41 @@ export function isMock(): boolean {
   return new URLSearchParams(location.search).has("mock");
 }
 
+const DEFAULT_MOCK_VAULT: VaultSession = {
+  id: "aabbccdd",
+  provider: "hypergryph",
+  label: "bilibili服 · 1角色",
+  createdAt: 1760000010000,
+};
+
+const MAX_AVATAR_BYTES = 64 * 1024;
+const MEDIA_AVATAR_RE = /^media\/(?:avatars|chars)\/[A-Za-z0-9_.-]+\.webp$/;
+const RASTER_DATA_URL_RE = /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
+
+function isValidMockAvatar(avatar: string): boolean {
+  if (avatar === "") return true;
+  if (MEDIA_AVATAR_RE.test(avatar) && !avatar.includes("..")) return true;
+  if (
+    RASTER_DATA_URL_RE.test(avatar) &&
+    new TextEncoder().encode(avatar).length <= MAX_AVATAR_BYTES
+  ) {
+    return true;
+  }
+  return false;
+}
+
 let mockJobPolls = 0;
-let mockVault: VaultSession[] = [
-  { id: "aabbccdd", provider: "hypergryph", createdAt: 1760000010000 },
-];
+let mockQrSeq = 0;
+const mockQrSessions = new Map<string, { save: boolean; polls: number }>();
+let mockVault: VaultSession[] = [{ ...DEFAULT_MOCK_VAULT }];
+const mockAvatars = new Map<string, string>();
 
 export function resetMockState(): void {
   mockJobPolls = 0;
-  mockVault = [{ id: "aabbccdd", provider: "hypergryph", createdAt: 1760000010000 }];
+  mockQrSeq = 0;
+  mockQrSessions.clear();
+  mockVault = [{ ...DEFAULT_MOCK_VAULT }];
+  mockAvatars.clear();
 }
 
 const analysisAccountB: AccountAnalysis = {
@@ -150,7 +180,28 @@ export async function mockFetch<T>(
   }
 
   if (pathname === "/api/accounts") {
-    return (accountsSample as AccountSummary[]) as T;
+    const list = (accountsSample as AccountSummary[]).map((a) => ({
+      ...a,
+      avatar: mockAvatars.get(a.accountKey) ?? a.avatar ?? "",
+    }));
+    return list as T;
+  }
+
+  if (pathname?.startsWith("/api/accounts/") && pathname.endsWith("/avatar") && method === "PUT") {
+    const key = decodeURIComponent(
+      pathname.slice("/api/accounts/".length, -"/avatar".length),
+    );
+    const exists = (accountsSample as AccountSummary[]).some((a) => a.accountKey === key);
+    if (!exists) {
+      throw new Error("账号不存在");
+    }
+    const body = (init.body ?? {}) as { avatar?: unknown };
+    if (typeof body.avatar !== "string" || !isValidMockAvatar(body.avatar)) {
+      throw new Error("头像格式无效或超过 64 KB 限制");
+    }
+    mockAvatars.set(key, body.avatar);
+    const res: AccountAvatarResponse = { accountKey: key, avatar: body.avatar };
+    return res as T;
   }
 
   if (pathname?.startsWith("/api/accounts/") && pathname.endsWith("/analysis")) {
@@ -224,17 +275,72 @@ export async function mockFetch<T>(
       ],
       ...(body.save ? { vaultId: "aabbccdd" } : {}),
     };
-    if (body.save && !mockVault.some((v) => v.id === "aabbccdd")) {
-      mockVault = [
-        {
-          id: "aabbccdd",
-          provider: body.provider === "gryphline" ? "gryphline" : "hypergryph",
-          createdAt: Date.now(),
-        },
-        ...mockVault,
-      ];
+    if (body.save) {
+      const entry: VaultSession = {
+        id: "aabbccdd",
+        provider: body.provider === "gryphline" ? "gryphline" : "hypergryph",
+        label: "bilibili服 · 1角色",
+        createdAt: Date.now(),
+      };
+      mockVault = [entry, ...mockVault.filter((v) => v.id !== "aabbccdd")];
     }
     return res as T;
+  }
+
+  if (pathname === "/api/passport/qr" && method === "POST") {
+    const body = (init.body ?? {}) as { provider?: string; save?: boolean };
+    if (body.provider === "gryphline") {
+      throw new Error("国际服暂不支持扫码登录，请使用通行证 token");
+    }
+    mockQrSeq += 1;
+    const scanId = `SYNTHSCAN${String(mockQrSeq).padStart(23, "0")}`;
+    mockQrSessions.set(scanId, { save: body.save !== false, polls: 0 });
+    const res: PassportQrCreateResponse = {
+      scanId,
+      scanUrl: `hypergryph://scan_login?scanId=${scanId}`,
+    };
+    return res as T;
+  }
+
+  if (pathname?.startsWith("/api/passport/qr/") && method === "GET") {
+    const scanId = decodeURIComponent(pathname.slice("/api/passport/qr/".length));
+    const session = mockQrSessions.get(scanId);
+    if (!session) {
+      throw new Error("扫码会话不存在或已过期，请重新生成二维码");
+    }
+    session.polls += 1;
+    if (session.polls === 1) {
+      const pending: PassportQrStatusResponse = { status: "pending" };
+      return pending as T;
+    }
+    const label = "bilibili服 · 1角色";
+    const bindings = [
+      {
+        channelName: "bilibili服",
+        channelMasterId: "2",
+        roleCount: 1,
+        isDefault: true,
+        uidFingerprint: "11aa22bb",
+      },
+    ];
+    let vaultId: string | undefined;
+    if (session.save) {
+      vaultId = "eeff0011";
+      const entry: VaultSession = {
+        id: vaultId,
+        provider: "hypergryph",
+        label,
+        createdAt: Date.now(),
+      };
+      mockVault = [entry, ...mockVault.filter((v) => v.id !== vaultId)];
+    }
+    const confirmed: PassportQrStatusResponse = {
+      status: "confirmed",
+      ...(vaultId ? { vaultId } : {}),
+      label,
+      bindings,
+    };
+    return confirmed as T;
   }
 
   if (pathname === "/api/passport/vault" && method === "GET") {

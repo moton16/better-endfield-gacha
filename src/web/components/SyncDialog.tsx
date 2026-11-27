@@ -1,10 +1,13 @@
-import { useEffect, useRef, useState } from "preact/hooks";
-import { api } from "../api/client.js";
+import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { encodeQr } from "../../core/qr.js";
+import { ApiError, api } from "../api/client.js";
 import { isMock } from "../api/mock.js";
 import type {
   CacheScanResponse,
   LinkResponse,
   PassportInspectResponse,
+  PassportQrCreateResponse,
+  PassportQrStatusResponse,
   SyncJob,
   VaultSession,
 } from "../api/types.js";
@@ -20,6 +23,29 @@ function feedStatusMark(status: "ok" | "skipped" | "error"): string {
   if (status === "ok") return "✓";
   if (status === "skipped") return "–";
   return "✗";
+}
+
+const QR_QUIET_ZONE = 2;
+
+function qrModulesToPath(modules: boolean[][]): string {
+  const parts: string[] = [];
+  for (let y = 0; y < modules.length; y++) {
+    const row = modules[y];
+    if (!row) continue;
+    let x = 0;
+    while (x < row.length) {
+      if (!row[x]) {
+        x++;
+        continue;
+      }
+      const start = x;
+      while (x < row.length && row[x]) {
+        x++;
+      }
+      parts.push(`M${start + QR_QUIET_ZONE} ${y + QR_QUIET_ZONE}h${x - start}v1h-${x - start}z`);
+    }
+  }
+  return parts.join("");
 }
 
 export function SyncDialog({
@@ -55,6 +81,14 @@ export function SyncDialog({
   const [confirmClearVault, setConfirmClearVault] = useState(false);
   const [passportNote, setPassportNote] = useState<string | null>(null);
 
+  // Route B QR login state
+  const [qrStatus, setQrStatus] = useState<"idle" | "creating" | "polling" | "error">("idle");
+  const [qrSession, setQrSession] = useState<PassportQrCreateResponse | null>(null);
+  const [qrHint, setQrHint] = useState<string | null>(null);
+  const [qrError, setQrError] = useState<string | null>(null);
+  const qrTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const qrRunId = useRef(0);
+
   // Job polling state
   const [job, setJob] = useState<SyncJob | null>(null);
   const [syncing, setSyncing] = useState(false);
@@ -62,13 +96,31 @@ export function SyncDialog({
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const unmounted = useRef(false);
 
+  function clearQrTimer() {
+    qrRunId.current += 1;
+    if (qrTimer.current) {
+      clearTimeout(qrTimer.current);
+      qrTimer.current = null;
+    }
+  }
+
+  function cancelQr() {
+    clearQrTimer();
+    setQrStatus("idle");
+    setQrSession(null);
+    setQrHint(null);
+    setQrError(null);
+  }
+
   useEffect(() => {
     unmounted.current = false;
     void loadScan();
     void loadVault();
     return () => {
       unmounted.current = true;
+      qrRunId.current += 1;
       if (pollTimer.current) clearTimeout(pollTimer.current);
+      if (qrTimer.current) clearTimeout(qrTimer.current);
       setTokenInput("");
       setRevealedLink(null);
     };
@@ -90,14 +142,15 @@ export function SyncDialog({
     }
   }
 
-  async function loadVault() {
+  async function loadVault(preferredId?: string) {
     try {
       const list = await api<VaultSession[]>("/api/passport/vault");
       if (unmounted.current) return;
       setVaultSessions(list);
-      setSelectedVaultId((prev) =>
-        prev && list.some((v) => v.id === prev) ? prev : (list[0]?.id ?? ""),
-      );
+      setSelectedVaultId((prev) => {
+        if (preferredId && list.some((v) => v.id === preferredId)) return preferredId;
+        return prev && list.some((v) => v.id === prev) ? prev : (list[0]?.id ?? "");
+      });
     } catch (err) {
       onAuthError(err);
     }
@@ -131,17 +184,18 @@ export function SyncDialog({
     }
   }
 
-  async function startSync(mode: "cache" | "passport") {
+  async function startSync(mode: "cache" | "passport", vaultIdOverride?: string) {
     setActionError(null);
     setJob(null);
     setSyncing(true);
     try {
+      const effectiveVaultId = vaultIdOverride ?? selectedVaultId;
       const body =
         mode === "cache"
           ? { mode: "cache", ...(channel ? { channel } : {}) }
           : {
               mode: "passport",
-              vaultId: selectedVaultId,
+              vaultId: effectiveVaultId,
               ...(channel ? { channel } : {}),
             };
       const res = await api<{ jobId: string }>("/api/sync", {
@@ -155,6 +209,116 @@ export function SyncDialog({
         setSyncing(false);
         setActionError(err instanceof Error ? err.message : String(err));
       }
+    }
+  }
+
+  async function pollQr(scanId: string, runId: number) {
+    if (unmounted.current || qrRunId.current !== runId) return;
+    try {
+      const res = await api<PassportQrStatusResponse>(
+        `/api/passport/qr/${encodeURIComponent(scanId)}`,
+      );
+      if (unmounted.current || qrRunId.current !== runId) return;
+
+      if (res.status === "pending") {
+        if (res.transientError) {
+          setQrHint(
+            `网络波动，正在重试（第 ${res.consecutiveErrors ?? 1} 次）：${res.transientError}`,
+          );
+        } else if (res.hint) {
+          setQrHint(res.hint);
+        } else {
+          setQrHint(null);
+        }
+        qrTimer.current = setTimeout(() => {
+          void pollQr(scanId, runId);
+        }, isMock() ? 100 : 2000);
+        return;
+      }
+
+      if (res.status === "error") {
+        clearQrTimer();
+        setQrStatus("error");
+        setQrError(res.error || "扫码登录失败，请重新生成二维码");
+        setQrHint(null);
+        return;
+      }
+
+      clearQrTimer();
+      setQrStatus("idle");
+      setQrSession(null);
+      setQrHint(null);
+      setQrError(null);
+      setInspectRes({
+        bindings: res.bindings,
+        ...(res.vaultId ? { vaultId: res.vaultId } : {}),
+      });
+      if (res.vaultId) {
+        await loadVault(res.vaultId);
+        if (unmounted.current) return;
+        setSelectedVaultId(res.vaultId);
+        onToast(`扫码登录成功（${res.label}），已加密保存并开始同步`);
+        void startSync("passport", res.vaultId);
+      } else {
+        setPassportNote(`已完成扫码校验（${res.label}；未勾选加密保存，无法经本地服务同步）。`);
+        onToast("扫码登录校验完成");
+      }
+    } catch (err) {
+      if (onAuthError(err)) {
+        clearQrTimer();
+        return;
+      }
+      if (unmounted.current || qrRunId.current !== runId) return;
+      clearQrTimer();
+      setQrStatus("error");
+      const expired =
+        (err instanceof ApiError && (err.status === 404 || err.code === "qr_expired")) ||
+        (err instanceof Error && err.message.includes("过期"));
+      setQrError(
+        expired
+          ? err instanceof Error && err.message
+            ? err.message
+            : "二维码已过期，请重新生成"
+          : err instanceof Error
+            ? err.message
+            : String(err),
+      );
+      setQrHint(null);
+    }
+  }
+
+  async function startQrLogin() {
+    clearQrTimer();
+    const runId = qrRunId.current;
+    setActionError(null);
+    setPassportNote(null);
+    setQrError(null);
+    setQrHint(null);
+    setQrSession(null);
+    setQrStatus("creating");
+    try {
+      const res = await api<PassportQrCreateResponse>("/api/passport/qr", {
+        method: "POST",
+        body: { provider: "hypergryph", save: saveVault },
+      });
+      if (unmounted.current || qrRunId.current !== runId) return;
+      if (!res.scanId || !res.scanUrl) {
+        throw new Error("未获取到有效的扫码会话");
+      }
+      setQrSession(res);
+      setQrStatus("polling");
+      qrTimer.current = setTimeout(() => {
+        void pollQr(res.scanId, runId);
+      }, isMock() ? 100 : 2000);
+    } catch (err) {
+      if (onAuthError(err)) {
+        clearQrTimer();
+        return;
+      }
+      if (unmounted.current || qrRunId.current !== runId) return;
+      clearQrTimer();
+      setQrStatus("error");
+      setQrError(err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -214,7 +378,7 @@ export function SyncDialog({
       if (unmounted.current) return;
       setInspectRes(res);
       if (res.vaultId) {
-        await loadVault();
+        await loadVault(res.vaultId);
         setSelectedVaultId(res.vaultId);
         onToast("通行证校验成功并已加密保存");
       } else {
@@ -251,6 +415,33 @@ export function SyncDialog({
     }
   }
 
+  function handleClose() {
+    cancelQr();
+    if (pollTimer.current) {
+      clearTimeout(pollTimer.current);
+      pollTimer.current = null;
+    }
+    onClose();
+  }
+
+  function switchTab(next: "cache" | "passport") {
+    if (next === subTab) return;
+    if (next !== "passport") {
+      cancelQr();
+    }
+    setActionError(null);
+    setSubTab(next);
+  }
+
+  const qrGraphic = useMemo(() => {
+    if (!qrSession?.scanUrl) return null;
+    const { size, modules } = encodeQr(qrSession.scanUrl);
+    return {
+      viewSize: size + QR_QUIET_ZONE * 2,
+      path: qrModulesToPath(modules),
+    };
+  }, [qrSession?.scanUrl]);
+
   const latestCred = scan?.credentials
     ? [...scan.credentials].sort((a, b) => b.sortTime - a.sortTime)[0]
     : undefined;
@@ -258,13 +449,17 @@ export function SyncDialog({
     provider === "hypergryph" &&
     inspectRes !== null &&
     !inspectRes.bindings.some((b) => b.channelMasterId === "2");
+  const showPassportFallback =
+    subTab === "cache" &&
+    actionError !== null &&
+    (actionError.includes("40100") || actionError.includes("过期"));
 
   return (
     <div class="modal-backdrop">
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="sync-dialog-title">
         <div class="modal-head">
           <h2 id="sync-dialog-title">同步抽卡记录</h2>
-          <button type="button" class="btn" onClick={onClose} aria-label="关闭同步弹窗">
+          <button type="button" class="btn" onClick={handleClose} aria-label="关闭同步弹窗">
             关闭
           </button>
         </div>
@@ -274,7 +469,7 @@ export function SyncDialog({
             type="button"
             role="tab"
             aria-selected={subTab === "cache"}
-            onClick={() => setSubTab("cache")}
+            onClick={() => switchTab("cache")}
           >
             游戏缓存（零绑定）
           </button>
@@ -282,7 +477,7 @@ export function SyncDialog({
             type="button"
             role="tab"
             aria-selected={subTab === "passport"}
-            onClick={() => setSubTab("passport")}
+            onClick={() => switchTab("passport")}
           >
             鹰角通行证
           </button>
@@ -391,22 +586,96 @@ export function SyncDialog({
               B 服玩家需要先在 user.hypergryph.com 绑定 B 服角色；token 权限较高；勾选「加密保存」会使用 Windows DPAPI 保存在本机。
             </p>
 
-            <form onSubmit={(e) => void handleInspect(e)}>
-              <div class="field">
-                <label htmlFor="passport-provider">服务区</label>
-                <select
-                  id="passport-provider"
-                  class="select"
-                  value={provider}
-                  onChange={(e) =>
-                    setProvider((e.target as HTMLSelectElement).value as "hypergryph" | "gryphline")
+            <div class="field">
+              <label htmlFor="passport-provider">服务区</label>
+              <select
+                id="passport-provider"
+                class="select"
+                value={provider}
+                onChange={(e) => {
+                  const next = (e.target as HTMLSelectElement).value as "hypergryph" | "gryphline";
+                  if (next !== "hypergryph") {
+                    cancelQr();
                   }
-                >
-                  <option value="hypergryph">国服（hypergryph）</option>
-                  <option value="gryphline">国际服（gryphline）</option>
-                </select>
-              </div>
+                  setProvider(next);
+                }}
+              >
+                <option value="hypergryph">国服（hypergryph）</option>
+                <option value="gryphline">国际服（gryphline）</option>
+              </select>
+            </div>
 
+            {provider === "hypergryph" && (
+              <div class="info-box qr-panel">
+                <div class="qr-panel-head">
+                  <span class="qr-title">森空岛扫码登录（推荐）</span>
+                  {qrStatus === "idle" && (
+                    <button
+                      type="button"
+                      class="btn primary"
+                      disabled={syncing}
+                      onClick={() => void startQrLogin()}
+                    >
+                      扫码登录
+                    </button>
+                  )}
+                  {(qrStatus === "creating" || qrStatus === "polling") && (
+                    <button type="button" class="btn" onClick={cancelQr}>
+                      取消扫码
+                    </button>
+                  )}
+                </div>
+
+                {qrStatus === "creating" && (
+                  <div class="qr-hint">正在生成扫码会话…</div>
+                )}
+
+                {qrStatus === "polling" && qrGraphic && (
+                  <div class="qr-box">
+                    <div class="qr-frame">
+                      <svg
+                        class="qr-svg"
+                        viewBox={`0 0 ${qrGraphic.viewSize} ${qrGraphic.viewSize}`}
+                        role="img"
+                        aria-label="扫码登录二维码"
+                        shape-rendering="crispEdges"
+                      >
+                        <rect
+                          width={qrGraphic.viewSize}
+                          height={qrGraphic.viewSize}
+                          fill="#ffffff"
+                        />
+                        <path d={qrGraphic.path} fill="#000000" />
+                      </svg>
+                    </div>
+                    <div class="qr-hint">
+                      {qrHint ?? "请使用森空岛 App 扫描二维码并在手机上确认登录"}
+                    </div>
+                  </div>
+                )}
+
+                {qrStatus === "error" && (
+                  <div>
+                    <div class="warn-text">{qrError ?? "扫码登录失败，请重试"}</div>
+                    <div class="row-inline" style={{ marginTop: "6px" }}>
+                      <button
+                        type="button"
+                        class="btn primary"
+                        disabled={syncing}
+                        onClick={() => void startQrLogin()}
+                      >
+                        重新生成二维码
+                      </button>
+                      <button type="button" class="btn" onClick={cancelQr}>
+                        取消扫码
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <form onSubmit={(e) => void handleInspect(e)}>
               <div class="field">
                 <label htmlFor="passport-token">通行证 token 或 /account/info/hg JSON</label>
                 <input
@@ -471,7 +740,9 @@ export function SyncDialog({
                 {vaultSessions.length === 0 && <option value="">暂无已保存会话</option>}
                 {vaultSessions.map((v) => (
                   <option key={v.id} value={v.id}>
-                    {v.id} · {v.provider} · {fmtTs(v.createdAt)}
+                    {v.label
+                      ? `${v.label} · ${v.id} · ${fmtTs(v.createdAt)}`
+                      : `${v.id} · ${v.provider} · ${fmtTs(v.createdAt)}`}
                   </option>
                 ))}
               </select>
@@ -517,7 +788,26 @@ export function SyncDialog({
           </div>
         )}
 
-        {actionError && <div class="warn-text">{actionError}</div>}
+        {actionError && (
+          <div class="warn-text">
+            <div>{actionError}</div>
+            {showPassportFallback && (
+              <div style={{ marginTop: "6px" }}>
+                <button
+                  type="button"
+                  class="btn"
+                  onClick={() => {
+                    setActionError(null);
+                    setProvider("hypergryph");
+                    setSubTab("passport");
+                  }}
+                >
+                  改用鹰角通行证扫码
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         {job && (
           <div style={{ marginTop: "8px" }}>

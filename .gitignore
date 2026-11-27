@@ -36,3 +36,13 @@ PlatformProcess/
 Thumbs.db
 .vscode/
 .idea/
+
+# Tauri desktop shell build & staging artifacts
+src-tauri/target/
+src-tauri/gen/
+src-tauri/resources/node/
+src-tauri/resources/dist/
+src-tauri/resources/dist-web/
+src-tauri/resources/*.md
+src-tauri/resources/LICENSE
+!src-tauri/resources/.gitkeep

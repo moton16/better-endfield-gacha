@@ -29,6 +29,8 @@ export const OPTIONS = {
   apply: { type: "boolean" },
   "pool-map": { type: "string" },
   "include-gifts": { type: "boolean" },
+  "parent-pid": { type: "string" },
+  "watch-stdin": { type: "boolean" },
 } as const;
 
 export interface CliContext {

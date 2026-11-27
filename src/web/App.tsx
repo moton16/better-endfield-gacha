@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 import { ApiError, api, bootstrapKey, clearKey } from "./api/client.js";
 import { isMock } from "./api/mock.js";
-import type { AccountAnalysis, AccountSummary } from "./api/types.js";
+import type { AccountAnalysis, AccountAvatarResponse, AccountSummary } from "./api/types.js";
+import { AvatarPickerDialog } from "./components/AvatarPickerDialog.js";
 import { DataDialog } from "./components/DataDialog.js";
-import { Header } from "./components/Header.js";
+import { Header, readStoredAvatar, writeStoredAvatar } from "./components/Header.js";
 import { KeyPrompt } from "./components/KeyPrompt.js";
 import { PoolSection } from "./components/PoolSection.js";
 import { PoolTabs } from "./components/PoolTabs.js";
@@ -45,7 +46,7 @@ export function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [keyReason, setKeyReason] = useState<string | null>(null);
-  const [dialog, setDialog] = useState<"sync" | "data" | null>(null);
+  const [dialog, setDialog] = useState<"sync" | "data" | "avatar" | null>(null);
   const [privacy, setPrivacy] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -144,6 +145,32 @@ export function App() {
     }
   }
 
+  const handleSelectAvatar = useCallback(
+    async (nextAvatar: string) => {
+      if (!accountKey) return;
+      try {
+        const res = await api<AccountAvatarResponse>(
+          `/api/accounts/${encodeURIComponent(accountKey)}/avatar`,
+          { method: "PUT", body: { avatar: nextAvatar } },
+        );
+        const savedAvatar = res.avatar ?? nextAvatar;
+        writeStoredAvatar(accountKey, savedAvatar);
+        setAccounts((prev) =>
+          prev.map((a) => (a.accountKey === accountKey ? { ...a, avatar: savedAvatar } : a)),
+        );
+        showToast(savedAvatar ? "已更新头像" : "已恢复默认头像");
+      } catch (err) {
+        if (handleAuthError(err)) return;
+        throw err;
+      }
+    },
+    [accountKey, handleAuthError, showToast],
+  );
+
+  const currentAccount = useMemo(
+    () => accounts.find((a) => a.accountKey === accountKey) ?? null,
+    [accounts, accountKey],
+  );
   const globalSummary = useMemo(
     () => (analysis ? deriveGlobalSummary(analysis) : null),
     [analysis],
@@ -166,6 +193,7 @@ export function App() {
         onTogglePrivacy={() => setPrivacy((p) => !p)}
         onOpenSync={() => setDialog("sync")}
         onOpenData={() => setDialog("data")}
+        onOpenAvatarPicker={() => setDialog("avatar")}
         mock={mock}
         globalSummary={globalSummary}
         onToast={showToast}
@@ -287,6 +315,17 @@ export function App() {
           onDataChanged={refreshAll}
           onToast={showToast}
           onAuthError={handleAuthError}
+        />
+      )}
+
+      {dialog === "avatar" && currentAccount && (
+        <AvatarPickerDialog
+          accountKey={currentAccount.accountKey}
+          currentAvatar={currentAccount.avatar || readStoredAvatar(currentAccount.accountKey)}
+          nickname={currentAccount.nickname}
+          privacy={privacy}
+          onSelectAvatar={handleSelectAvatar}
+          onClose={() => setDialog(null)}
         />
       )}
 

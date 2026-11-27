@@ -16,6 +16,7 @@
   "include": [
     "src/web/**/*.ts",
     "src/web/**/*.tsx",
+    "src/core/qr.ts",
     "src/core/analysis/types.ts",
     "src/core/analysis/common.ts",
     "src/core/analysis/config.ts",

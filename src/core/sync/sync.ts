@@ -44,6 +44,10 @@ export interface SyncOptions {
 
 const MAX_PAGES_DEFAULT = 500;
 
+function isTokenExpiredEfError(err: unknown): boolean {
+  return err instanceof EfApiError && (err.code === 40100 || err.code === "40100");
+}
+
 interface FeedFetchOutcome {
   records: GachaRecord[];
   pages: number;
@@ -111,6 +115,7 @@ export async function syncAccount(
       const added = store.insertRecords(accountKey, out.records);
       feeds.push({ feed, label, pages: out.pages, fetched: out.records.length, added, status: "ok" });
     } catch (err) {
+      if (isTokenExpiredEfError(err)) throw err;
       const msg = err instanceof Error ? err.message : String(err);
       feeds.push({
         feed, label, pages: 0, fetched: 0, added: 0,
@@ -147,6 +152,7 @@ export async function syncAccount(
   try {
     weaponPools = await client.weaponPools();
   } catch (err) {
+    if (isTokenExpiredEfError(err)) throw err;
     feeds.push({
       feed: "weapon:*", label: "武器池列表", pages: 0, fetched: 0, added: 0, status: "error",
       error: err instanceof Error ? err.message : String(err),
@@ -192,6 +198,7 @@ export async function syncAccount(
         });
       }
     } catch (err) {
+      if (isTokenExpiredEfError(err)) throw err;
       for (const id of failedRerun) {
         feeds.push({
           feed: `weapon:${id}`, label: id, pages: 0, fetched: 0, added: 0, status: "error",

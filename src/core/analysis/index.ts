@@ -11,7 +11,12 @@ export * from "./config.js";
 export * from "./types.js";
 export { luck, tabOf, tone } from "./common.js";
 export { badges, computeRating, globalSummaryFor, overviewFor } from "./summary.js";
-export { makeUpResolver, type UpResolver } from "./up.js";
+export {
+  loadUpMapOverride,
+  makeUpResolver,
+  type UpResolver,
+  type UpResolverOptions,
+} from "./up.js";
 
 export interface AnalyzeInput {
   accountKey: string;
@@ -20,6 +25,10 @@ export interface AnalyzeInput {
   pools: PoolInfo[];
   rerunChar: RerunCount[];
   rerunWeapon: RerunCount[];
+  /** 可选数据目录，用于读取 `<dataDir>/up-map.override.json` 本地 UP 覆盖 */
+  dataDir?: string;
+  /** 可选内存 UP 覆盖映射（优先于本地覆盖文件，低于 DB pools） */
+  upOverride?: Record<string, { up6Ids?: string[] }>;
   /** 可选时间戳注入，便于测试纯函数幂等性 */
   now?: number;
 }
@@ -27,7 +36,10 @@ export interface AnalyzeInput {
 const NO_UP_POOL_TYPES = new Set<string>([CHAR_STANDARD, CHAR_BEGINNER, "constant"]);
 
 export function analyzeAccount(i: AnalyzeInput): AccountAnalysis {
-  const up = makeUpResolver(new Map(i.pools.map((p) => [p.poolId, p])));
+  const up = makeUpResolver(new Map(i.pools.map((p) => [p.poolId, p])), {
+    dataDir: i.dataDir,
+    override: i.upOverride,
+  });
   const notes: string[] = [];
   const groups: PoolGroup[] = [];
 
@@ -48,7 +60,7 @@ export function analyzeAccount(i: AnalyzeInput): AccountAnalysis {
 
   for (const g of groups) {
     if (!g.upKnown && g.count6 > 0 && !NO_UP_POOL_TYPES.has(g.poolType)) {
-      notes.push(`池「${g.title}」缺少 UP 信息，未判定歪（可补 src/core/data/up-map.json）`);
+      notes.push(`池「${g.title}」缺少 UP 信息，未判定歪（可在数据目录补充 up-map.override.json 或更新 src/core/data/up-map.json）`);
     }
   }
 

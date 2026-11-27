@@ -1,5 +1,6 @@
-import { parseHyTokenInput, qrCreate, qrWait, type Provider } from "../../core/auth/passport.js";
+import { formatBindingsLabel, parseHyTokenInput, qrCreate, qrWait, type Provider } from "../../core/auth/passport.js";
 import { Vault } from "../../core/auth/vault.js";
+import { renderQrTerminal } from "../../core/qr.js";
 import { fingerprint } from "../../core/redact.js";
 import { inspectPassport } from "../../core/route-b.js";
 import type { CliContext } from "../context.js";
@@ -19,7 +20,12 @@ export async function resolveHyToken(ctx: CliContext): Promise<string | null> {
   if (ctx.bool("qr")) {
     const session = await qrCreate();
     console.log("请用森空岛/鹰角 App 扫码确认登录：");
-    console.log(session.scanUrl || `(scanId=${fingerprint(session.scanId)})`);
+    if (session.scanUrl) {
+      console.log(renderQrTerminal(session.scanUrl));
+      console.log(session.scanUrl);
+    } else {
+      console.log(`(scanId=${fingerprint(session.scanId)})`);
+    }
     return qrWait(session);
   }
   if (ctx.bool("token-stdin")) return parseHyTokenInput(await readStdin());
@@ -64,8 +70,9 @@ export const login: Command = {
       }
       if (ctx.bool("save")) {
         const id = fingerprint(token);
-        new Vault(ctx.dataDir()).save(id, provider, token);
-        console.log(`已保存（vault-id=${id}）。\n${RISK_NOTE}`);
+        const label = formatBindingsLabel(bindings);
+        new Vault(ctx.dataDir()).save(id, provider, token, label);
+        console.log(`已保存（vault-id=${id}，${label}）。\n${RISK_NOTE}`);
       }
       return 0;
     } catch (err) {
