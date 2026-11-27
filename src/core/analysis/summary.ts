@@ -1,5 +1,6 @@
 import type { GachaRecord } from "../types.js";
 import { isDraw } from "./common.js";
+import { computeRating } from "./rating.js";
 import type {
   AccountGlobalSummary,
   BadgeCount,
@@ -7,6 +8,8 @@ import type {
   Tab,
   TabOverview,
 } from "./types.js";
+
+export { computeRating };
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 const TABS: readonly Tab[] = ["limited", "weapon", "standard", "beginner"];
@@ -86,36 +89,6 @@ function findFirstRecordTs(records: GachaRecord[]): string | null {
     }
   }
   return minRaw;
-}
-
-/** 按小保底归一化水位比例计算本地趣味欧气称号（纯本地确定性计算） */
-export function computeRating(
-  groups: PoolGroup[],
-  totalDraws: number,
-  total6: number,
-): { ratingLabel: string; isLucky: boolean } {
-  let ratioSum = 0;
-  let paidCount = 0;
-  for (const g of groups) {
-    const denom = g.smallPityMax || 80;
-    for (const h of g.hits) {
-      if (h.isFree) continue;
-      ratioSum += h.pity / denom;
-      paidCount += 1;
-    }
-  }
-  if (paidCount === 0) {
-    if (totalDraws === 0) return { ratingLabel: "《持玉观望的屯屯鼠》", isLucky: false };
-    if (total6 > 0) return { ratingLabel: "《白嫖出金》", isLucky: true };
-    return { ratingLabel: "《蓄势待发》", isLucky: false };
-  }
-  const avgRatio = ratioSum / paidCount;
-  if (avgRatio <= 0.4) return { ratingLabel: "《宇宙无敌大欧皇》", isLucky: true };
-  if (avgRatio <= 0.55) return { ratingLabel: "《天选大欧皇》", isLucky: true };
-  if (avgRatio <= 0.68) return { ratingLabel: "《小有欧气》", isLucky: true };
-  if (avgRatio <= 0.78) return { ratingLabel: "《中规中矩》", isLucky: false };
-  if (avgRatio <= 0.88) return { ratingLabel: "《略显非酋》", isLucky: false };
-  return { ratingLabel: "《终末地大非酋》", isLucky: false };
 }
 
 export function globalSummaryFor(

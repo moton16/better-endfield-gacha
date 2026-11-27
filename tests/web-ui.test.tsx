@@ -67,7 +67,7 @@ describe("Web UI mock mode & interactions", () => {
     expect(summary.getByText("武器")).toBeTruthy();
     expect(summary.getByText("庆典")).toBeTruthy();
     expect(summary.getByText("基准")).toBeTruthy();
-    expect(summary.getByText("《天选大欧皇》")).toBeTruthy();
+    expect(summary.getByText("《宇宙级至尊欧皇》")).toBeTruthy();
     expect(summary.getByText("本地统计自")).toBeTruthy();
     expect(summary.getByLabelText("切换总览卡页")).toBeTruthy();
 

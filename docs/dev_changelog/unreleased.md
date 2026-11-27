@@ -35,3 +35,8 @@
 
 ### [CO-AUTHORS] — Vodyanitsaaa,2026-11-27,Antigravity,Gemini 4 Hydrogen — chore: 在提交历史中补录 Codex / Gemini / Claude 协同贡献者
 - **`docs/dev_changelog/unreleased.md`**：通过最小文档增量提交附带 `Co-authored-by` 署名（`codex`、`gemini-code-assist`、`claude`），以便 GitHub Contributors 列表收录三位协同 AI 贡献者；工作区原有未暂存业务改动未受影响。
+
+### [ANALYSIS-RATING] — Vodyanitsaaa,2026-11-27,Antigravity,Gemini 4 Hydrogen — feat(analysis,web): 重构六级欧非称号模型（按池期望抽数加权与歪率 Z 偏移）
+- **`src/core/analysis/rating.ts`（新） / `summary.ts` / `src/web/lib/bar.ts` / `tsconfig.web.json`**：将原先按小保底水位的称号逻辑抽离为 Core 与 Web 共用的 `computeRating`，按池期望抽数（角色 50 / 武器 19）加权计算综合出货指数，对限定/复刻/武器池已知 UP ≥ 4 的付费 6★ 应用歪率标准差偏移 $Z$（`±1` 升降一档），并对 `< 5` 付费 6★ 启用小样本极端档位保护。
+- **夹具与文档**：同步更新 `docs/DEVELOPER.md`、`src/web/mock/analysis.sample.json`、`tests/fixtures/server/analysis.json`、`tests/analysis.test.ts`、`tests/web-bar.test.tsx`、`tests/web-ui.test.tsx`。
+- **局部验证**：`tsc -p tsconfig.json`、`tsc -p tsconfig.web.json` 与 `vitest run tests/analysis.test.ts tests/web-bar.test.tsx tests/web-ui.test.tsx`（36 passed）。

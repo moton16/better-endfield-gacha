@@ -10,10 +10,13 @@ import {
   CHAR_RERUN,
   CHAR_SPECIAL,
   CHAR_STANDARD,
+  computeRating,
   luck,
   makeUpResolver,
   RULES,
   tone,
+  type PoolGroup,
+  type SixStarHit,
 } from "../src/core/analysis/index.js";
 import { stats } from "../src/cli/commands/stats.js";
 import { makeContext } from "../src/cli/context.js";
@@ -727,6 +730,10 @@ describe("analysis engine (W1)", () => {
     for (const file of ["src/web/mock/analysis.sample.json", "tests/fixtures/server/analysis.json"]) {
       const sample = JSON.parse(fs.readFileSync(path.resolve(file), "utf8")) as ReturnType<typeof analyzeAccount>;
       expect(sample.global).toBeDefined();
+      expect(computeRating(sample.groups, sample.global!.totalDraws, sample.global!.total6)).toEqual({
+        ratingLabel: sample.global!.ratingLabel,
+        isLucky: sample.global!.isLucky,
+      });
       for (const g of sample.groups) {
         for (const h of g.hits) {
           expect(h.tone).toBe(tone(h.pity, g.smallPityMax));
@@ -797,5 +804,184 @@ describe("GachaStore.getAllPools & CLI stats --analysis", () => {
     } finally {
       console.log = origLog;
     }
+  });
+});
+
+function mkGroupForRating(
+  hits: Array<Pick<SixStarHit, "pity" | "isUp"> & { isFree?: boolean }>,
+  overrides: Partial<PoolGroup> = {},
+): PoolGroup {
+  const kind = overrides.kind ?? "char";
+  const tab = overrides.tab ?? (kind === "weapon" ? "weapon" : "limited");
+  return {
+    key: `g:${kind}:${tab}`,
+    kind,
+    tab,
+    poolType: overrides.poolType ?? (kind === "weapon" ? "special" : CHAR_SPECIAL),
+    poolId: "p_rating",
+    title: "评级测试池",
+    total: 0,
+    paid: 0,
+    free: 0,
+    count6: hits.length,
+    count5: 0,
+    count4: 0,
+    up6Ids: [],
+    upKnown: true,
+    hits: hits.map((h, i) => ({
+      itemId: `i_${i}`,
+      itemName: `六星_${i}`,
+      pity: h.pity,
+      isFree: h.isFree ?? false,
+      isNew: false,
+      isUp: h.isUp,
+      gachaTs: String(1000 + i),
+      seqId: String(i + 1),
+      tone: "yellow",
+      luck: null,
+    })),
+    pending: 0,
+    smallPityMax: kind === "weapon" ? 40 : 80,
+    freeBatches: [],
+    isCurrent: true,
+    firstTs: "1000",
+    lastTs: "2000",
+    ...overrides,
+  };
+}
+
+describe("computeRating", () => {
+  it("处理零抽、纯免费出金与垫抽无金三种特殊态", () => {
+    expect(computeRating([], 0, 0)).toEqual({ ratingLabel: "《持玉观望的屯屯鼠》", isLucky: false });
+    expect(
+      computeRating([mkGroupForRating([{ pity: 10, isUp: true, isFree: true }])], 10, 1),
+    ).toEqual({ ratingLabel: "《白嫖出金》", isLucky: true });
+    expect(computeRating([mkGroupForRating([])], 35, 0)).toEqual({
+      ratingLabel: "《蓄势待发》",
+      isLucky: false,
+    });
+  });
+
+  it("按角色/武器期望加权出货指数划分六级称号（Z≈0 不移档）", () => {
+    const mkBalanced5 = (pity: number) => [
+      mkGroupForRating([
+        { pity, isUp: true },
+        { pity, isUp: true },
+        { pity, isUp: true },
+        { pity, isUp: false },
+        { pity, isUp: false },
+      ]),
+    ];
+    expect(computeRating(mkBalanced5(41), 205, 5)).toEqual({ ratingLabel: "《宇宙级至尊欧皇》", isLucky: true });
+    expect(computeRating(mkBalanced5(46), 230, 5)).toEqual({ ratingLabel: "《欧气冲天》", isLucky: true });
+    expect(computeRating(mkBalanced5(50), 250, 5)).toEqual({ ratingLabel: "《小有欧气》", isLucky: true });
+    expect(computeRating(mkBalanced5(54), 270, 5)).toEqual({ ratingLabel: "《脱欧入非》", isLucky: false });
+    expect(computeRating(mkBalanced5(58), 290, 5)).toEqual({ ratingLabel: "《绝世非酋》", isLucky: false });
+    expect(computeRating(mkBalanced5(59), 295, 5)).toEqual({ ratingLabel: "《万劫不复大非酋》", isLucky: false });
+  });
+
+  it("正确归一化武器池与混池（不因武器 40 抽小保底虚高）", () => {
+    const wpnAvg = [
+      mkGroupForRating(
+        [
+          { pity: 19, isUp: false },
+          { pity: 19, isUp: false },
+          { pity: 19, isUp: false },
+          { pity: 19, isUp: true },
+          { pity: 19, isUp: true },
+        ],
+        { kind: "weapon", tab: "weapon" },
+      ),
+    ];
+    expect(computeRating(wpnAvg, 95, 5)).toEqual({ ratingLabel: "《小有欧气》", isLucky: true });
+
+    const wpnUnlucky = [
+      mkGroupForRating(
+        [
+          { pity: 25, isUp: false },
+          { pity: 25, isUp: false },
+          { pity: 25, isUp: false },
+          { pity: 25, isUp: true },
+          { pity: 25, isUp: true },
+        ],
+        { kind: "weapon", tab: "weapon" },
+      ),
+    ];
+    expect(computeRating(wpnUnlucky, 125, 5)).toEqual({ ratingLabel: "《万劫不复大非酋》", isLucky: false });
+
+    const mixed = [
+      mkGroupForRating([
+        { pity: 50, isUp: true },
+        { pity: 50, isUp: true },
+        { pity: 50, isUp: false },
+      ]),
+      mkGroupForRating(
+        [
+          { pity: 19, isUp: true },
+          { pity: 19, isUp: false },
+        ],
+        { kind: "weapon", tab: "weapon" },
+      ),
+    ];
+    expect(computeRating(mixed, 188, 5)).toEqual({ ratingLabel: "《小有欧气》", isLucky: true });
+  });
+
+  it("限定/复刻/武器池已知 UP ≥4 时按歪率 Z 升降一档，常驻/庆典与免费金不干扰", () => {
+    const allUp5 = [
+      mkGroupForRating([
+        { pity: 50, isUp: true },
+        { pity: 50, isUp: true },
+        { pity: 50, isUp: true },
+        { pity: 50, isUp: true },
+        { pity: 50, isUp: true },
+        { pity: 1, isUp: true, isFree: true },
+      ]),
+    ];
+    expect(computeRating(allUp5, 260, 6)).toEqual({ ratingLabel: "《欧气冲天》", isLucky: true });
+
+    const offHeavy5 = [
+      mkGroupForRating([
+        { pity: 50, isUp: false },
+        { pity: 50, isUp: false },
+        { pity: 50, isUp: false },
+        { pity: 50, isUp: false },
+        { pity: 50, isUp: true },
+      ]),
+    ];
+    expect(computeRating(offHeavy5, 250, 5)).toEqual({ ratingLabel: "《脱欧入非》", isLucky: false });
+
+    // 仅 3 个限定池 6★（<4），常驻与庆典池不参与歪率修正，保持原档《小有欧气》
+    const belowZThreshold = [
+      mkGroupForRating([
+        { pity: 50, isUp: false },
+        { pity: 50, isUp: false },
+        { pity: 50, isUp: false },
+      ]),
+      mkGroupForRating([{ pity: 50, isUp: false }], { poolType: CHAR_JOINT, tab: "limited" }),
+      mkGroupForRating([{ pity: 50, isUp: null }], { poolType: CHAR_STANDARD, tab: "standard" }),
+    ];
+    expect(computeRating(belowZThreshold, 250, 5)).toEqual({ ratingLabel: "《小有欧气》", isLucky: true });
+  });
+
+  it("付费 6★ 少于 5 个时启用小样本保护，不给出首尾两个极端档位", () => {
+    const fourSuperLucky = [
+      mkGroupForRating([
+        { pity: 10, isUp: true },
+        { pity: 10, isUp: true },
+        { pity: 10, isUp: true },
+        { pity: 10, isUp: true },
+      ]),
+    ];
+    expect(computeRating(fourSuperLucky, 40, 4)).toEqual({ ratingLabel: "《欧气冲天》", isLucky: true });
+
+    const fourSuperUnlucky = [
+      mkGroupForRating([
+        { pity: 75, isUp: false },
+        { pity: 75, isUp: false },
+        { pity: 75, isUp: false },
+        { pity: 75, isUp: false },
+      ]),
+    ];
+    expect(computeRating(fourSuperUnlucky, 300, 4)).toEqual({ ratingLabel: "《绝世非酋》", isLucky: false });
   });
 });

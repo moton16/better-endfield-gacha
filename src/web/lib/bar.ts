@@ -1,5 +1,6 @@
 import { tone } from "../../core/analysis/common.js";
 import { ARSENAL_QUOTA_BY_RARITY, CHAR_JOINT, CHAR_RERUN } from "../../core/analysis/config.js";
+import { computeRating } from "../../core/analysis/rating.js";
 import type {
   AccountAnalysis,
   AccountGlobalSummary,
@@ -266,7 +267,6 @@ export function deriveGlobalSummary(analysis: AccountAnalysis): AccountGlobalSum
     }
   }
 
-  let ratioSum = 0;
   let paidPitySum = 0;
   let paidCount = 0;
   let minMs = Infinity;
@@ -279,42 +279,14 @@ export function deriveGlobalSummary(analysis: AccountAnalysis): AccountGlobalSum
       minMs = fms;
       firstRecordTs = g.firstTs;
     }
-    const denom = g.smallPityMax || 80;
     for (const h of g.hits) {
       if (h.isFree) continue;
-      ratioSum += h.pity / denom;
       paidPitySum += h.pity;
       paidCount += 1;
     }
   }
 
-  let ratingLabel = "《蓄势待发》";
-  let isLucky = false;
-  if (paidCount === 0) {
-    if (totalDraws === 0) ratingLabel = "《持玉观望的屯屯鼠》";
-    else if (total6 > 0) {
-      ratingLabel = "《白嫖出金》";
-      isLucky = true;
-    }
-  } else {
-    const r = ratioSum / paidCount;
-    if (r <= 0.4) {
-      ratingLabel = "《宇宙无敌大欧皇》";
-      isLucky = true;
-    } else if (r <= 0.55) {
-      ratingLabel = "《天选大欧皇》";
-      isLucky = true;
-    } else if (r <= 0.68) {
-      ratingLabel = "《小有欧气》";
-      isLucky = true;
-    } else if (r <= 0.78) {
-      ratingLabel = "《中规中矩》";
-    } else if (r <= 0.88) {
-      ratingLabel = "《略显非酋》";
-    } else {
-      ratingLabel = "《终末地大非酋》";
-    }
-  }
+  const { ratingLabel, isLucky } = computeRating(analysis.groups, totalDraws, total6);
 
   return {
     totalDraws,

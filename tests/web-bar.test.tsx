@@ -8,6 +8,7 @@ import { PoolSection } from "../src/web/components/PoolSection.js";
 import {
   barWidth,
   deriveCostSummary,
+  deriveGlobalSummary,
   fmtCompactCost,
   fmtMonthDay,
   fmtRelativeTime,
@@ -138,6 +139,22 @@ describe("bar helpers", () => {
     expect(groupArsenalQuota(makeGroup({ kind: "char", count6: 1, count5: 4, count4: 35 }))).toBe(3500);
     expect(groupArsenalQuota(makeGroup({ kind: "char", arsenalQuota: 8600 }))).toBe(8600);
     expect(groupArsenalQuota(makeGroup({ kind: "weapon", count6: 2, count5: 3, count4: 35 }))).toBeNull();
+
+    const fallbackSummary = deriveGlobalSummary({
+      accountKey: "k",
+      generatedAt: 1,
+      overview: {
+        limited: { total: 10, count6: 1, offBanner: 0, upCount: 1, avgPity6: 10, avgCostPerUp: 10, badges: [], luckCounts: { ou: 1, fei: 0 } },
+        weapon: { total: 0, count6: 0, offBanner: 0, upCount: 0, avgPity6: null, avgCostPerUp: null, badges: [], luckCounts: { ou: 0, fei: 0 } },
+        standard: { total: 0, count6: 0, offBanner: 0, upCount: 0, avgPity6: null, avgCostPerUp: null, badges: [], luckCounts: { ou: 0, fei: 0 } },
+        beginner: { total: 0, count6: 0, offBanner: 0, upCount: 0, avgPity6: null, avgCostPerUp: null, badges: [], luckCounts: { ou: 0, fei: 0 } },
+      },
+      groups: [makeGroup({ hits: [makeHit({ pity: 10, isUp: true })] })],
+      notes: [],
+    });
+    expect(fallbackSummary.ratingLabel).toBe("《欧气冲天》");
+    expect(fallbackSummary.isLucky).toBe(true);
+    expect(fallbackSummary.avgPity6).toBe(10);
   });
 });
 

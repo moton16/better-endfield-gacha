@@ -20,6 +20,7 @@
     "src/core/analysis/types.ts",
     "src/core/analysis/common.ts",
     "src/core/analysis/config.ts",
+    "src/core/analysis/rating.ts",
     "tests/web*.test.tsx"
   ]
 }
