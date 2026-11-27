@@ -1,5 +1,7 @@
 ﻿param(
-  [string]$NodeVersion = "v24.15.0"
+  [string]$NodeVersion = "v24.15.0",
+  [switch]$WithTests,
+  [switch]$SkipChecks
 )
 
 Set-StrictMode -Version Latest
@@ -171,9 +173,21 @@ try {
     Remove-Item -Path (Join-Path $RepoRoot "dist-web") -Recurse -Force
   }
 
-  Invoke-Checked "pnpm install --frozen-lockfile" { pnpm install --frozen-lockfile }
-  Invoke-Checked "pnpm typecheck" { pnpm typecheck }
-  Invoke-Checked "pnpm test" { pnpm test }
+  $isRelease = $env:BEG_RELEASE -in @("1", "true")
+  if ($isRelease -and $SkipChecks) {
+    throw "BEG_RELEASE=1 forbids -SkipChecks"
+  }
+  if (-not $SkipChecks) {
+    Invoke-Checked "pnpm install --frozen-lockfile" { pnpm install --frozen-lockfile }
+    Invoke-Checked "pnpm typecheck" { pnpm typecheck }
+    if ($isRelease -or $WithTests) {
+      Invoke-Checked "pnpm test" { pnpm test }
+    } else {
+      Write-Host "Non-release build: skipping full pnpm test (only runs when BEG_RELEASE=1 or -WithTests)"
+    }
+  } else {
+    Write-Host "SkipChecks: 跳过 install / typecheck / test（仅构建，非发布流程）"
+  }
   Invoke-Checked "pnpm build" { pnpm build }
 
   $pkgJson = Get-Content -Path (Join-Path $RepoRoot "package.json") -Raw -Encoding UTF8 | ConvertFrom-Json

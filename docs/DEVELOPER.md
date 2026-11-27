@@ -95,11 +95,11 @@ Web UI (src/web) ──[X-BEG-Key]──► Server (src/server, 127.0.0.1) ─�
 | `auth/passport.ts` | 通行证接口与扫码登录 | `grantOAuth`, `listBindings`, `u8TokenByUid`, `qrCreate`, `qrPollStatus`, `formatBindingsLabel` | `status === 0` 为成功；`call()` 在 `!res.ok` 经 `readHttpErrorMessage` 保留 JSON `msg`/`message`；`qrPollStatus` 区分 `pending`/`confirmed`/网络或 HTTP 错误（保留 `qrPoll` 兼容）；`formatBindingsLabel` 生成脱敏渠道摘要（如 `bilibili服 · 1角色`）；2026-11-26 真机实证 |
 | `auth/dpapi.ts`、`auth/vault.ts` | 通行证加密保险库 | `dpapi`, `Vault` | Windows 优先 `pwsh`、`ENOENT` 回退 `powershell` 5.1，stdin base64 传参；`Vault.save` 持久化 `label` 语义标签，`list()` 不返 `cipher` |
 | `route-b.ts` | 路线 B 编排 | `inspectPassport`, `syncFromPassport` | 换票必须传外层 `binding.uid`（非 `roleId`）；按需重 grant；单绑定失败不中断其它；`roles.length === 0`（及无回退 `status=101`）记 warning 跳过 |
-| `io/*`、`data/lcx-catalog.ts` | 导入 / 导出 / 离愁轩 / 备份 | `validateRecord`, `parseV1`, `parseLcx`, `planImport`, `applyImport`, `toCsv`, `LCX_BUILTIN_POOLS` | 官方优先不覆盖；`lcx` 卡池优先级 `--pool-map` > 本地库 > `LCX_BUILTIN_POOLS`，物品 ID 本地库 > `LCX_BUILTIN_ITEMS` > `lcx:<name>`；`allowTruncatedMs` 将截断 `000` 毫秒同秒同物归入 `duplicates`；`backupTo` 使用 `VACUUM INTO` |
-| `server/*`、`web-dir.ts`、`cli/commands/{serve,login,sync}.ts` | 本地 API + 静态托管 + CLI 宿主 | `createApp`, `resolveWebDir`, `waitForStopSignal`, `serve`, `login` | 仅监听 `127.0.0.1`；`routes/passport.ts` 新增 `POST /api/passport/qr`（仅国服、`QR_SESSION_TTL_MS = 5m`、`QR_MAX_SESSIONS = 32`）与 `GET /api/passport/qr/:scanId`（`confirmPromise` 防并发重复换票，连续错误 `>= 3` 置 `error`），vault 返回 `label`；`routes/accounts.ts` 返回 `avatar` 并提供 `PUT /api/accounts/:key/avatar`（`AVATAR_BODY_LIMIT = 128 KB` 以容纳 64 KB DataURL，仅放行空串、`media/(avatars\|chars)/*.webp`（禁 `..`）与 `<= 64 KB` 光栅 DataURL，拒 SVG/HTTP 返 `400 bad_avatar`）；`login --qr` / `sync --passport --qr` 输出终端 QR；`serve` 支持 `--parent-pid` 与显式 `--watch-stdin`（避免 `stdio: "ignore"` 误退）并在 `finally` 顺序 `app.close()` + `store.close()` |
-| `web/*`、`tsconfig.web.json` | Preact + Vite 前端与媒体/头像 | `App`, `Header`, `SummaryCards`, `Avatar`, `PoolSection`, `SyncDialog`, `AvatarPickerDialog`, `media.ts` | `Header.tsx` 顶部汇总条展示「总抽取」与「总消耗（`item_diamond` 嵌晶玉 / `item_gachabyproducts_weapongold` 武库配额估算图标，无包时文字回退）」；`SummaryCards.tsx` 使用对称麦穗环绕评分与每页固定 3 卡（`calc((100% - 12px) / 3)`）可滑/分页总览；`SyncDialog.tsx` 用 `encodeQr` 本地渲染 Inline SVG QR，确认后自动触发同步，显示 vault `label` 与 `40100` 一键切扫码按钮；`src/web/public/media/manifest.json` + `src/web/lib/media.ts` 静默加载并先验存在性（防 404，含 `currency/` 2 枚图标），`iconFor` 优先 `itemAlias`、默认互换 `wpn_funnel_0008` ↔ `wpn_funnel_0010`（显式 alias 不二次反转）、双向回退 `wpn_sword_0021` ↔ `wpn_sword_0021_ink`、`chars→weapons→boxes`，`currencyIconFor` 解析 `currency/`；`PoolSection.tsx` 角色池头部显示 `产出` 武库配额、将单 UP 角色头图与武器图居中叠放于卡池头右半渐变区（多 UP 庆典池回退横幅，无图保持渐变兜底）、武器池统一水位柱状视图、且将免费十连出金置于付费区块下方（共享灰标 `免费十连`、绿条抽数、照常标 `歪`、禁渲染 `·免费`/付费垫抽标签）；`AvatarPickerDialog.tsx` 支持预设/干员/Canvas 居中裁剪（`<= 64 KB` WebP/JPEG/PNG，拒 SVG），经 `PUT` + `localStorage` 按 `accountKey` 持久化，且在 `Header.tsx` `privacy === true` 时隐藏自定义头像并显示「终」 |
+| `io/*`、`data/lcx-catalog.ts` | 导入 / 导出 / 离愁轩 / 备份 | `validateRecord`, `parseV1`, `parseLcx`, `planImport`, `applyImport`, `toCsv`, `LCX_BUILTIN_POOLS` | 官方优先不覆盖；`lcx` 卡池优先级 `--pool-map` > 本地库 > `LCX_BUILTIN_POOLS`，物品 ID 本地库 > `LCX_BUILTIN_ITEMS` > `lcx:<name>`；`allowTruncatedMs` 将截断 `000` 毫秒同秒同物归入 `duplicates`；`backupTo` 使用 `VACUUM INTO`；`readLcxMeta`/`resolveLcxAccount` 在目标账号未知时按文件 UID 匹配 roleId/bindingUid 相同的已有账号，否则新建 `source=import` 国服账号（空库导入；落库时才写 accounts）；`restore.ts` 的 `listBackups`/`resolveBackupFile`（仅 `backups/` 下纯文件名）/`planRestore`（在副本上打开备份，绝不碰原文件）/`applyRestore` 为「合并恢复」——本地缺失的记录/账号/卡池/头像/重构计数补回、同键保留本地、写入前自动再备份；`GachaStore.open` 初始化失败须释放句柄（Windows 否则无法删除坏备份副本） |
+| `server/*`、`web-dir.ts`、`cli/commands/{serve,login,sync,import,restore}.ts` | 本地 API + 静态托管 + CLI 宿主 | `createApp`, `resolveWebDir`, `waitForStopSignal`, `serve`, `login`, `restore` | 仅监听 `127.0.0.1`；`routes/passport.ts` 新增 `POST /api/passport/qr`（仅国服、`QR_SESSION_TTL_MS = 5m`、`QR_MAX_SESSIONS = 32`）与 `GET /api/passport/qr/:scanId`（`confirmPromise` 防并发重复换票，连续错误 `>= 3` 置 `error`），vault 返回 `label`；`routes/accounts.ts` 返回 `avatar` 并提供 `PUT /api/accounts/:key/avatar`（`AVATAR_BODY_LIMIT = 128 KB` 以容纳 64 KB DataURL，仅放行空串、`media/(avatars\|chars)/*.webp`（禁 `..`）与 `<= 64 KB` 光栅 DataURL，拒 SVG/HTTP 返 `400 bad_avatar`）；`routes/importexport.ts` 保留 `GET /api/export` 兼容并新增 `POST /api/export/save`（直写 `<dataDir>/exports/`）、`POST /api/open-folder`（仅 `exports\|backups`，`AppDeps.openFolder` 可注入）、`GET /api/backups`、`POST /api/backup/restore` 与 `POST /api/import` `createAccount: true`；`login --qr` / `sync --passport --qr` 输出终端 QR；`import --new-account` 与 `restore` CLI 就绪；`serve` 支持 `--parent-pid` 与显式 `--watch-stdin`（避免 `stdio: "ignore"` 误退）并在 `finally` 顺序 `app.close()` + `store.close()` |
+| `web/*`、`tsconfig.web.json` | Preact + Vite 前端与媒体/头像 | `App`, `Header`, `SummaryCards`, `Avatar`, `PoolSection`, `SyncDialog`, `DataDialog`, `AvatarPickerDialog`, `media.ts` | `Header.tsx` 顶部汇总条展示「总抽取」与「总消耗（`item_diamond` 嵌晶玉 / `item_gachabyproducts_weapongold` 武库配额估算图标，无包时文字回退）」；`SummaryCards.tsx` 使用对称麦穗环绕评分与每页固定 3 卡（`calc((100% - 12px) / 3)`）可滑/分页总览；`SyncDialog.tsx` 用 `encodeQr` 本地渲染 Inline SVG QR，确认后自动触发同步，显示 vault `label` 与 `40100` 一键切扫码按钮；`DataDialog.tsx` 导出改为服务端落盘 `<dataDir>/exports/` 并显示位置与「打开导出文件夹」、导入目标账号默认「自动」（空库自动按离愁轩 UID 建档/匹配）、新增「备份与恢复」列表（预览恢复 → 确认恢复 + 打开备份文件夹）；`src/web/public/media/manifest.json` + `src/web/lib/media.ts` 静默加载并先验存在性（防 404，含 `currency/` 2 枚图标），`iconFor` 优先 `itemAlias`、默认互换 `wpn_funnel_0008` ↔ `wpn_funnel_0010`（显式 alias 不二次反转）、双向回退 `wpn_sword_0021` ↔ `wpn_sword_0021_ink`、`chars→weapons→boxes`，`currencyIconFor` 解析 `currency/`；`PoolSection.tsx` 角色池头部显示 `产出` 武库配额、将单 UP 角色头图与武器图居中叠放于卡池头右半渐变区（多 UP 庆典池回退横幅，无图保持渐变兜底）、武器池统一水位柱状视图、且将免费十连出金置于付费区块下方（共享灰标 `免费十连`、绿条抽数、照常标 `歪`、禁渲染 `·免费`/付费垫抽标签）；`AvatarPickerDialog.tsx` 支持预设/干员/Canvas 居中裁剪（`<= 64 KB` WebP/JPEG/PNG，拒 SVG），经 `PUT` + `localStorage` 按 `accountKey` 持久化，且在 `Header.tsx` `privacy === true` 时隐藏自定义头像并显示「终」 |
 | `src-tauri/*` | Tauri v2 Windows 桌面轻壳 | `lib.rs`, `guards.rs`, `webview2.rs`, `sidecar.rs` | 单实例插件聚焦主窗（`496×900`，初始 `about:blank`）；`guards.rs` 拦截 `%TEMP%`/`%TMP%`/`AppData\Local\Temp`（仅 `BEG_ALLOW_TEMP=1` 放行）并以 `create_new` 探针实测写删权限；`webview2.rs` 查注册表 `{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}` `pv` 或 `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` 并弹窗引导；`sidecar.rs` 以 `CREATE_NO_WINDOW` 启动 `node serve --port 0 --no-open --parent-pid --watch-stdin --data-dir`，内存解析 `#k=`（15s 超时，诊断经 `scrub_secrets` 脱敏），`on_navigation` 仅放行 `about:blank` 与精确同端口 `127.0.0.1`/`localhost` 且 `on_new_window` 拒绝弹窗外开，退出先 `drop(stdin)` 等 1500ms 再 `kill()` |
-| `version.ts`、`scripts/pack*.ps1` | 版本真源与便携/桌面打包 | `VERSION`, `pack.ps1`, `pack-tauri.ps1` | `src/version.ts` 与 `package.json` 同步；`BEG_RELEASE=1` 拦截 `-dev`；`pack.ps1` 产出 CLI 便携 zip；`pack-tauri.ps1` 校验 `node.exe` SHA256 + Authenticode `Valid`（`-AllowUnsignedNode` 仅非发布调试），暂存资源至 `src-tauri/resources/`（`finally` 自动清理，支持 `-PrepareOnly`/`-KeepStaged`），产出 NSIS 安装包与 Desktop Portable zip + `.sha256`，临时目录全落 `release/` |
+| `version.ts`、`scripts/pack*.ps1` | 版本真源与便携/桌面打包 | `VERSION`, `pack.ps1`, `pack-tauri.ps1` | `src/version.ts` 与 `package.json` 同步；`BEG_RELEASE=1` 拦截 `-dev`；`pack.ps1`（CLI 便携 zip）与 `pack-tauri.ps1`（NSIS + Desktop zip + `.sha256`）在非发版期默认跳过全量 `pnpm test`（仅 `BEG_RELEASE=1` 或 `-WithTests` 时运行全量，支持 `-SkipChecks` 跳过前置检查，`BEG_RELEASE=1` 禁止 `-SkipChecks`）；`pack-tauri.ps1` 校验 `node.exe` SHA256 + Authenticode `Valid`（`-AllowUnsignedNode` 仅非发布调试），暂存资源至 `src-tauri/resources/`（`finally` 自动清理，支持 `-PrepareOnly`/`-KeepStaged`），临时目录全落 `release/` |
 
 ## 5. 数据布局与安全边界
 
@@ -121,18 +121,21 @@ Web UI (src/web) ──[X-BEG-Key]──► Server (src/server, 127.0.0.1) ─�
 
 ## 6. 开发约定与测试运行
 
+> **测试分级红线（绝对遵守）**：全量测试（`pnpm test` / `cargo test`）**仅在正式发版时运行**；非正式发版期间**绝对严禁**跑全量测试。普通开发、缺陷修复与非发版打包，只运行与本次改动直接相关的**局部最小测试**及必要的 `pnpm typecheck`。
+
 ```pwsh
 pnpm install
-pnpm typecheck        # tsc -p tsconfig.json && tsc -p tsconfig.web.json
-pnpm test             # vitest run（含 Windows 共享锁、DPAPI、QR、Route A 持久化、serve 宿主、媒体与构建预算、Tauri 结构等）
-pnpm build            # tsc -p tsconfig.build.json && vite build --config vite.config.ts
-pnpm pack             # pwsh -NoProfile -File scripts/pack.ps1 → release/better-endfield-gacha-<ver>-win-x64.zip
-pnpm pack:tauri       # pwsh -NoProfile -File scripts/pack-tauri.ps1 → NSIS setup.exe + desktop.zip（支持 -PrepareOnly）
-pnpm cli <命令>       # 开发期跑 CLI（若 pnpm tsx 报 ignored-builds，改用 .\node_modules\.bin\tsx.CMD）
-pnpm web:dev          # 启动 Vite 前端开发服务（需先启动 beg serve）
+pnpm typecheck                                  # tsc -p tsconfig.json && tsc -p tsconfig.web.json
+pnpm exec vitest run tests/<目标>.test.ts       # 普通开发：仅跑与本次改动相关的局部最小测试（可按 -t 指定用例）
+pnpm test                                       # ⚠️ 仅正式发版（BEG_RELEASE=1）时运行全量；非发版期严禁运行
+pnpm build                                      # tsc -p tsconfig.build.json && vite build --config vite.config.ts
+pnpm pack                                       # pwsh -NoProfile -File scripts/pack.ps1（默认跳过全量 pnpm test）
+pnpm pack:tauri                                 # pwsh -NoProfile -File scripts/pack-tauri.ps1（默认跳过全量 pnpm test；支持 -PrepareOnly / -SkipChecks）
+pnpm cli <命令>                                 # 开发期跑 CLI（若 pnpm tsx 报 ignored-builds，改用 .\node_modules\.bin\tsx.CMD）
+pnpm web:dev                                    # 启动 Vite 前端开发服务（需先启动 beg serve）
 ```
 
-- **Rust 桌面壳测试**：在 `src-tauri/` 下执行 `cargo check --all-targets && cargo test`（覆盖 `%TEMP%`/只读目录守卫、`#k=` 内存解析与脱敏、`on_navigation` 白名单、WebView2 注册表版本校验）。
+- **Rust 桌面壳测试**：日常修改 `src-tauri/` 仅执行 `cargo check --all-targets` 或 `cargo test <单测名>`；全量 `cargo test`（覆盖 `%TEMP%`/只读目录守卫、`#k=` 内存解析与脱敏、`on_navigation` 白名单、WebView2 注册表版本校验）仅在正式发版时运行。
 - **构建预算与零外链**：`tests/web-build.test.ts` 拆分校验构建体积——除 `media/` 外的代码与字体 `< 200 KB`，`media/` 静态媒体资源 `< 10 MB`，且 HTML/CSS/JSON 零外链 HTTP URL（`manifest.json` 同步产出至 `dist-web/media/manifest.json`）。
 - **版本守卫**：开发与候选阶段使用 `-dev` / `-rc.1` 预发布后缀（当前 `0.1.0-rc.1`）；设 `BEG_RELEASE=1` 时 `tests/version-guard.test.ts` 会拦截预发布后缀并校验 `package.json`、`src/version.ts`、`README.md` 徽章与 `CHANGELOG.md` 顶部条目严格一致。
 - **测试隔离**：测试一律使用 `:memory:` 或 `os.tmpdir()` 与合成夹具（`tests/helpers/`、`tests/fixtures/`），**禁止**读写真实 `%LOCALAPPDATA%` 或真实 token；打包缓存与冒烟临时目录一律放在仓库同盘 `release/` 下，禁止写 `C:\` 或系统 `$env:TEMP`。
@@ -150,7 +153,18 @@ pnpm web:dev          # 启动 Vite 前端开发服务（需先启动 beg serve�
 - **ef-webview 接口**：`ef-client.ts` 加方法（遵守 `server_id` 与 `scrubUrl`）→ `normalize.ts` 归一化 → `sync.ts` 编排 → `tests/helpers/fake-ef-server.ts` 补假端点。
 - **CLI 命令**：在 `src/cli/commands/` 新增命令文件，按需在 `src/cli/context.ts` 的 `OPTIONS` 末尾追加选项，并在 `src/cli/commands/index.ts` 末尾追加注册。
 
-### 正式发版流程
+### 本机打包流程（Windows CLI 便携版 / Tauri 桌面版）
+目前 `.github/workflows/ci.yml` 仅负责双平台检查与构建，分发产物均通过 `scripts/` 在本机生成并落入 `release/`（缓存与临时目录同盘落 `release/_cache` / `_stage` / `_smoke_tmp` / `_tauri_stage` / `_tauri_tmp`，不写入系统临时盘）：
+
+1. **CLI 便携版（`pnpm pack` → `scripts/pack.ps1`）**：
+   - 依赖：`Node.js >= 22.13`（推荐 24）+ `pnpm`；可选 `-SkipChecks`（非发版期跳过 `install`/`typecheck`）、`-WithTests`；
+   - 流程：`pnpm install --frozen-lockfile` → `pnpm typecheck` →（仅 `BEG_RELEASE=1` 或 `-WithTests` 时跑全量 `pnpm test`）→ `pnpm build` → 下载/复用 `node-v24.15.0-win-x64.zip` 并校验官方 `SHASUMS256.txt` → 解出 `node.exe`、组装 `beg.cmd` + `app/{dist,dist-web,package.json}` + `LICENSE`/`NOTICE.md`/`QUICKSTART.md`/`THIRD_PARTY.md` → 打出 `better-endfield-gacha-<ver>-win-x64.zip`（校验无运行期/敏感路径泄露）+ `.sha256`；
+   - 末尾自动在 `release/_smoke_tmp` 解压并实测 `beg.cmd version` 与 `serve --port 0 --no-open` 首页/鉴权/数据目录隔离，完成后清理临时目录。
+2. **Tauri 桌面版（`pnpm pack:tauri` → `scripts/pack-tauri.ps1`）**：
+   - 依赖：除 Node / pnpm 外，还需 Rust 工具链、MSVC Build Tools、NSIS（makensis）与 Tauri CLI v2（脚本按 `BEG_TAURI_CLI` → `cargo-tauri` → `node_modules\.bin\tauri.cmd` → `D:\dependency\tauri-cli` → 全局 `tauri` → `npx` 顺位查找；可选 `-PrepareOnly` / `-KeepStaged` / `-AllowUnsignedNode` / `-SkipChecks` / `-WithTests` 开关）；
+   - 流程：先将 `TEMP`/`TMP`/`npm_config_cache` 临时重定向至 `release/` → 清理并重跑 `install --frozen-lockfile` / `typecheck` /（仅 `BEG_RELEASE=1` 或 `-WithTests` 时跑全量 `pnpm test`）/ `build` → 校验官方 `node.exe` SHA256 与 OpenJS Foundation Authenticode 签名（`Valid`）→ 暂存资源至 `src-tauri/resources/`（含自动生成的 `THIRD_PARTY.md`）→ 调用 Tauri CLI 编 NSIS 安装包导出 `*-win-x64-setup.exe` → 组装并归档 `*-win-x64-desktop.zip`（校验无敏感文件泄露且必需入口齐全）及各自 `.sha256` → `finally` 自动还原 env 并清空 `src-tauri/resources/` 下除 `.gitkeep` 外的暂存产物。
+
+### 正式发版流程（唯一允许运行全量测试的环节）
 1. 完成真机验证并回写本文档 §5「已实证 vs 未实证」。
 2. 原子更新 `package.json`、`src/version.ts`、`src-tauri/Cargo.toml` / `src-tauri/tauri.conf.json`、`README.md` 版本徽章与 `CHANGELOG.md` 正式版本条目，并将 `docs/dev_changelog/unreleased.md` 归档至对应版本文件。
-3. 运行 `BEG_RELEASE=1` 下的 `pnpm typecheck && pnpm test && pnpm build`、`cargo test` 与 `pnpm pack` / `pnpm pack:tauri`，在干净无 Node/pwsh 7 的 Windows 环境中冒烟通过后再打 Tag。
+3. 运行 `BEG_RELEASE=1` 下的 `pnpm typecheck && pnpm test && pnpm build`、`cargo test` 与 `pnpm pack` / `pnpm pack:tauri`（`BEG_RELEASE=1` 时禁止 `-SkipChecks`），在干净无 Node/pwsh 7 的 Windows 环境中冒烟通过后再打 Tag。

@@ -7,4 +7,5 @@
   3. 国服（官服+B 服）请求 `ef-webview.hypergryph.com` 时 `server_id` 恒为 `"1"`；换票用外层 `bindingList[].uid`，绝不用 `roleId`；存储键必含渠道+角色维度。
   4. 测试必须使用临时目录与合成夹具，禁止读写宿主真实数据目录。
   5. `beg serve` 仅监听 `127.0.0.1`（禁止 `0.0.0.0`），校验 `X-BEG-Key` / `Host` / 同源 `Origin`，绝不返回 `Access-Control-Allow-*` CORS 头（详见 `DEVELOPER.md` §5）。
+  6. **测试边界红线（绝对遵守）**：全量测试（`pnpm test` / `cargo test`）**仅在正式发版时运行**；非正式发版期间**绝对严禁**运行全量测试，普通开发与修复只跑与本次改动直接相关的局部最小测试（详见 `DEVELOPER.md` §6）。
 - 架构、模块坑位、测试命令见 `docs/DEVELOPER.md`，本文档不重复。
