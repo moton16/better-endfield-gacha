@@ -32,3 +32,6 @@
 - **`scripts/pack.ps1` / `scripts/pack-tauri.ps1`**：默认跳过全量 `pnpm test`（仅在 `BEG_RELEASE=1`/`true` 或显式 `-WithTests` 时执行全量测试），同时两者统一支持 `-SkipChecks`（`BEG_RELEASE=1` 时禁止 `-SkipChecks`）。
 - **`CHANGELOG.md` / `QUICKSTART.md` / `docs/DEVELOPER.md`**：同步补充 `[DATA-IO-UX]` 的用户向更新日志、使用指南与 §4 模块表条目。
 - **局部验证**：运行 `tests/tauri-shell.test.ts`、`tests/version-guard.test.ts` 与 `scripts/pack*.ps1` PowerShell AST 校验（仅局部最小测试，未跑全量）。
+
+### [CO-AUTHORS] — Vodyanitsaaa,2026-11-27,Antigravity,Gemini 4 Hydrogen — chore: 在提交历史中补录 Codex / Gemini / Claude 协同贡献者
+- **`docs/dev_changelog/unreleased.md`**：通过最小文档增量提交附带 `Co-authored-by` 署名（`codex`、`gemini-code-assist`、`claude`），以便 GitHub Contributors 列表收录三位协同 AI 贡献者；工作区原有未暂存业务改动未受影响。
