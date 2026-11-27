@@ -67,8 +67,10 @@ function printPlanSummary(plan: ImportPlan, show: boolean): void {
   const newDraws = plan.newRecords.filter((r) => r.kind === "draw").length;
   const newGifts = plan.newRecords.length - newDraws;
   const newDetail = newGifts > 0 ? `${plan.newRecords.length}（抽卡 ${newDraws} + 非抽卡 ${newGifts}）` : `${plan.newRecords.length}`;
+  const dupDetail =
+    plan.truncatedMsDuplicates > 0 ? `${plan.duplicates}（含毫秒截断按同秒判重 ${plan.truncatedMsDuplicates}）` : `${plan.duplicates}`;
   console.log(
-    `账号 ${maskKey(plan.accountKey, show)}：解析 ${plan.total} 条 | 新增 ${newDetail} | 重复 ${plan.duplicates} | 冲突 ${plan.conflicts.length} | 跳过 ${plan.skipped.length}`,
+    `账号 ${maskKey(plan.accountKey, show)}：解析 ${plan.total} 条 | 新增 ${newDetail} | 重复 ${dupDetail} | 冲突 ${plan.conflicts.length} | 跳过 ${plan.skipped.length}`,
   );
   if (plan.conflicts.length > 0) {
     console.log(`  ! 冲突 ${plan.conflicts.length} 条（本地官方记录优先，不覆盖）`);
@@ -188,7 +190,7 @@ export const importCmd: Command = {
         return 1;
       }
 
-      const plan = planImport(store, account, lcxRes.records, []);
+      const plan = planImport(store, account, lcxRes.records, [], { allowTruncatedMs: true });
       printPlanSummary(plan, show);
       for (const w of lcxRes.warnings) console.log(`  ! ${w}`);
       if (lcxRes.ambiguous.length > 0) {

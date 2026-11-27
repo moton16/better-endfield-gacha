@@ -861,4 +861,121 @@ describe("W3 local HTTP server", () => {
     expect(lcxApplyJson.backup).toBeTruthy();
     expect(store.getRecords(acc.accountKey).length).toBe(2 + (lcxApplyJson.plans[0]?.added ?? 0));
   });
+
+  it("17. 路线 B 空绑定跳过（ok=true + 警告）与 /api/import 离愁轩毫秒截断判重及内置池表", async () => {
+    const dataDir = mkTempDir("beg-w3-empty-lcx-");
+    const store = GachaStore.open(dataDir);
+    const hy = "SYNTH_HYTOKEN_EMPTY_BIND_12345";
+    const u8Bili = fakeToken("pp-bili-2");
+    const pp = createFakePassport({
+      hytoken: hy,
+      bindings: [
+        { uid: "PP_EMPTY_OFF", channelMasterId: "1", channelName: "官服", isDefault: false, roles: [], u8Token: "UNUSED" },
+        {
+          uid: "PP_UID_BILI_2",
+          channelMasterId: "2",
+          channelName: "bilibili服",
+          isDefault: true,
+          roles: [{ roleId: "PP_ROLE_BILI_2", nickName: "合成玩家" }],
+          u8Token: u8Bili,
+        },
+      ],
+    });
+    const ef = createFakeServer({
+      token: u8Bili,
+      char: {
+        E_CharacterGachaPoolType_Special: [makeChar(11, 5, "special_1_0_1", "熔火灼痕")],
+        E_CharacterGachaPoolType_Standard: [],
+      },
+      weaponPools: [],
+      weapon: {},
+      roleList: { uid: "PP_UID_BILI_2", roleId: "PP_ROLE_BILI_2", nickname: "合成玩家" },
+    });
+    const f = combineFetch(
+      { match: (u) => u.hostname.endsWith(".hypergryph.com") && !u.hostname.startsWith("u8.") && !u.hostname.startsWith("ef-webview."), fetch: pp.fetch },
+      { match: (u) => u.hostname.startsWith("u8.") || u.hostname.startsWith("ef-webview."), fetch: ef.fetch },
+    );
+
+    const { app } = createMemoryApp({ dataDir, deps: { store, fetch: f, sleep: async () => {} } });
+    const base = (await app.listen()).split("#")[0]!.replace(/\/$/, "");
+
+    const inspectRes = await fetch(`${base}/api/passport/inspect`, {
+      method: "POST",
+      headers: { "X-BEG-Key": app.key, "Content-Type": "application/json" },
+      body: JSON.stringify({ input: hy, save: true }),
+    });
+    expect(inspectRes.status).toBe(200);
+    const { vaultId } = (await inspectRes.json()) as { vaultId: string };
+
+    const syncRes = await fetch(`${base}/api/sync`, {
+      method: "POST",
+      headers: { "X-BEG-Key": app.key, "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: "passport", vaultId }),
+    });
+    expect(syncRes.status).toBe(200);
+    const { jobId } = (await syncRes.json()) as { jobId: string };
+
+    let job: any;
+    for (let i = 0; i < 200; i++) {
+      const jr = await fetch(`${base}/api/jobs/${jobId}`, { headers: { "X-BEG-Key": app.key } });
+      job = await jr.json();
+      if (job.state !== "running") break;
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    expect(job.state).toBe("done");
+    expect(job.result.items).toHaveLength(2);
+    expect(job.result.items[0]).toEqual({
+      channelName: "官服",
+      maskedKey: "已跳过（无角色）",
+      ok: true,
+      feeds: [],
+      warnings: ["该渠道下没有角色，已跳过"],
+    });
+    expect(job.result.items[1]?.ok).toBe(true);
+
+    // 验证 /api/import 离愁轩毫秒截断归入 duplicates 且内置 1.0~1.4 池表无需 poolMap
+    const acc = mkAccount({
+      accountKey: "cn_2_SYNTHUID9_SYNTHROLE9",
+      bindingUid: "SYNTHUID9",
+      roleId: "SYNTHROLE9",
+    });
+    store.upsertAccount(acc);
+    store.insertRecords(acc.accountKey, [
+      mkRecord(501, {
+        poolId: "special_1_0_1",
+        poolName: "熔火灼痕",
+        itemId: "chr_0016_laevat",
+        itemName: "莱万汀",
+        rarity: 6,
+        gachaTs: "1770000100932",
+      }),
+    ]);
+
+    const lcxPayload = JSON.stringify({
+      code: 0,
+      data: {
+        uid: "SYNTH_LCX",
+        export_timestamp: 1775000000,
+        total: 2,
+        list: [
+          { seqId: "501", gachaTs: 1770000100, rarity: 6, poolName: "熔火灼痕", isFree: false, charName: "莱万汀" },
+          { seqId: "502", gachaTs: 1770000200, rarity: 4, poolName: "基础寻访", isFree: false, charName: "佩丽卡" },
+        ],
+      },
+    });
+    const impRes = await fetch(`${base}/api/import`, {
+      method: "POST",
+      headers: { "X-BEG-Key": app.key, "Content-Type": "application/json" },
+      body: JSON.stringify({ text: lcxPayload, account: acc.accountKey, apply: false }),
+    });
+    expect(impRes.status).toBe(200);
+    const impJson = (await impRes.json()) as {
+      plans: Array<{ added: number; duplicates: number; conflicts: number }>;
+      unresolvedPools: string[];
+      warnings: string[];
+    };
+    expect(impJson.unresolvedPools).toEqual([]);
+    expect(impJson.plans[0]).toMatchObject({ added: 1, duplicates: 1, conflicts: 0 });
+    expect(impJson.warnings.some((w) => w.includes("截断为 000"))).toBe(true);
+  });
 });

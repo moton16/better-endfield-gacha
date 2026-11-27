@@ -1,7 +1,7 @@
 /** 路线 B 编排：hytoken → 全部绑定 → 逐绑定换 u8_token → 反查角色 → 全池同步。 */
 import { EfClient } from "./api/ef-client.js";
 import { grantOAuth, listBindings, PROVIDERS, u8TokenByUid, type Binding, type Provider } from "./auth/passport.js";
-import { queryRoleList } from "./auth/role.js";
+import { queryRoleList, RoleQueryError } from "./auth/role.js";
 import { CHANNEL_NAMES } from "./route-a.js";
 import type { GachaStore } from "./storage/store.js";
 import { syncAccount, type SyncReport } from "./sync/sync.js";
@@ -45,6 +45,7 @@ export async function syncFromPassport(o: RouteBOptions): Promise<RouteBItem[]> 
   }
 
   const items: RouteBItem[] = [];
+  let initialOauthUsed = false;
   // 遍历同账户下全部绑定（官服 + 多个 B 服绑定），每个绑定各自换票
   for (const b of bindings) {
     const item: RouteBItem = {
@@ -53,9 +54,16 @@ export async function syncFromPassport(o: RouteBOptions): Promise<RouteBItem[]> 
     };
     items.push(item);
     try {
+      if (b.roles.length === 0) {
+        const ch = b.channelName || b.channelMasterId || "未知渠道";
+        say(`绑定 ${ch}：无角色，跳过`);
+        item.warnings.push("该渠道下没有角色，已跳过");
+        continue;
+      }
       say(`绑定 ${b.channelName || b.channelMasterId}：换取 u8_token`);
       // 每次换票都重新 grant 一次，避免 oauth token 被复用导致的短时失效
-      const freshOauth = items.length === 1 ? oauth : await grantOAuth(o.hytoken, provider, o.fetch);
+      const freshOauth = !initialOauthUsed ? oauth : await grantOAuth(o.hytoken, provider, o.fetch);
+      initialOauthUsed = true;
       const u8 = await u8TokenByUid(freshOauth, b.uid, provider, o.fetch); // 外层 binding.uid，绝不是 roleId
 
       const serverId = cfg.region === "cn" ? "1" : (b.roles[0]?.serverId ?? "");
@@ -72,7 +80,13 @@ export async function syncFromPassport(o: RouteBOptions): Promise<RouteBItem[]> 
         }
       } catch (err) {
         const fallback = b.roles.find((r) => r.serverId === serverId) ?? b.roles[0];
-        if (!fallback) throw err;
+        if (!fallback) {
+          if (err instanceof RoleQueryError && err.isNoRole) {
+            item.warnings.push("该渠道下没有角色，已跳过");
+            continue;
+          }
+          throw err;
+        }
         roleId = fallback.roleId;
         nickname = fallback.nickname;
         serverName = fallback.serverName;

@@ -5,6 +5,7 @@
  * 未知武器/未知角色四星占位、“应急手段”→“显锋”旧名映射）参考社区开源实现：
  * MoguJunn（MIT License）的离愁轩救援解析思路。
  */
+import { LCX_BUILTIN_ITEMS, LCX_BUILTIN_POOLS } from "../data/lcx-catalog.js";
 import type { GachaRecord, RecordType } from "../types.js";
 import { ImportError, LIMITS, validateRecord } from "./validate.js";
 
@@ -179,7 +180,13 @@ export function parseLcx(
       rarity = parsedRar + rarityOffset;
       itemName = RENAMES[rawName] ?? rawName;
       const itemIds = localItems.get(`${type}\0${itemName}`);
-      itemId = itemIds && itemIds.size === 1 ? [...itemIds][0]! : `lcx:${itemName}`;
+      const builtinItems = LCX_BUILTIN_ITEMS[type];
+      itemId =
+        itemIds && itemIds.size === 1
+          ? [...itemIds][0]!
+          : Object.hasOwn(builtinItems, itemName)
+            ? builtinItems[itemName]!
+            : `lcx:${itemName}`;
     }
 
     const poolName = row.poolName == null ? "" : String(row.poolName).trim();
@@ -193,15 +200,15 @@ export function parseLcx(
       poolEntry = ctx.poolMap[poolName];
     } else {
       const candidates = localPools.get(poolName);
-      if (!candidates || candidates.size === 0) {
-        unresolvedSet.add(poolName);
-        continue;
-      }
-      if (candidates.size > 1) {
+      if (candidates && candidates.size > 1) {
         ambiguousSet.add(poolName);
         continue;
       }
-      poolEntry = [...candidates.values()][0]!;
+      if (candidates && candidates.size === 1) {
+        poolEntry = [...candidates.values()][0]!;
+      } else if (Object.hasOwn(LCX_BUILTIN_POOLS, poolName)) {
+        poolEntry = LCX_BUILTIN_POOLS[poolName];
+      }
     }
 
     if (!poolEntry) {

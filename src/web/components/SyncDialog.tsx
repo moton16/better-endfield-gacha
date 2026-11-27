@@ -528,8 +528,8 @@ export function SyncDialog({
             </div>
             {job.result && (
               <div class="info-box">
-                {job.result.items.map((item) => (
-                  <div key={item.maskedKey} style={{ marginBottom: "6px" }}>
+                {job.result.items.map((item, idx) => (
+                  <div key={`${idx}-${item.maskedKey}`} style={{ marginBottom: "6px" }}>
                     <strong>
                       {item.channelName} · {item.maskedKey}
                     </strong>

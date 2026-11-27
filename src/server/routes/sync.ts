@@ -114,10 +114,15 @@ export function register(router: Router, deps: AppDeps): void {
           onProgress: log,
         });
         for (const it of items) {
+          const skippedNoRole = !it.error && !it.account && !it.report;
           summaryItems.push({
             channelName: it.account?.channelName || it.binding.channelName || CHANNEL_NAMES[it.binding.channelMasterId] || "",
-            maskedKey: it.account ? maskKey(it.account.accountKey, false) : `cn_${it.binding.channelMasterId || "?"}_#unknown`,
-            ok: Boolean(!it.error && it.report?.ok),
+            maskedKey: it.account
+              ? maskKey(it.account.accountKey, false)
+              : skippedNoRole
+                ? "已跳过（无角色）"
+                : `cn_${it.binding.channelMasterId || "?"}_#unknown`,
+            ok: !it.error && (it.report ? it.report.ok : true),
             feeds: (it.report?.feeds ?? []).map((f) => ({
               label: f.label,
               fetched: f.fetched,

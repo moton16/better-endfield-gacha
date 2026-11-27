@@ -1,0 +1,51 @@
+{
+  "code": 0,
+  "msg": "ok",
+  "data": {
+    "uid": "9900112233",
+    "nickName": "SynthRealShape",
+    "server": "bilibili",
+    "serverId": "1",
+    "exportTs": "1760000900000",
+    "total": 4,
+    "hasMore": false,
+    "list": [
+      {
+        "poolName": "测试特许池",
+        "seqId": "501",
+        "gachaTs": "1760000500000",
+        "rarity": 6,
+        "isFree": false,
+        "charId": "14",
+        "charName": "星辉测试员"
+      },
+      {
+        "poolName": "测试特许池",
+        "seqId": "502",
+        "gachaTs": "1760000501000",
+        "rarity": 3,
+        "isFree": false,
+        "charId": "",
+        "charName": "未知角色"
+      },
+      {
+        "poolName": "测试特许池",
+        "seqId": "503",
+        "gachaTs": "1760000502000",
+        "rarity": 4,
+        "isFree": true,
+        "charId": "22",
+        "charName": "夜航测试员"
+      },
+      {
+        "poolName": "测试武器箱",
+        "seqId": "601",
+        "gachaTs": "1760000600000",
+        "rarity": 5,
+        "isFree": false,
+        "weaponId": "42",
+        "weaponName": "显锋"
+      }
+    ]
+  }
+}

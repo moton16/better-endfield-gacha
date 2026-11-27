@@ -14,6 +14,21 @@ export const U8_HOSTS: Record<EfRegion, string> = {
   global: "u8.gryphline.com",
 };
 
+export class RoleQueryError extends Error {
+  readonly status?: number | string;
+
+  constructor(message: string, status?: number | string) {
+    super(message);
+    this.name = "RoleQueryError";
+    this.status = status;
+  }
+
+  /** 是否表示该渠道下尚无角色（U8 query_role_list status=101）。 */
+  get isNoRole(): boolean {
+    return this.status === 101 || String(this.status) === "101";
+  }
+}
+
 /**
  * 用 u8_token 反查 uid + 角色（路线 A 用来确定账号隔离键）。
  * 社区实现已使用该接口（POST /game/role/v1/query_role_list）。
@@ -34,17 +49,24 @@ export async function queryRoleList(
       body: JSON.stringify({ token, serverId }),
     });
   } catch (err) {
-    throw new Error(scrubUrl(`query_role_list 网络错误：${err instanceof Error ? err.message : String(err)}`));
+    throw new RoleQueryError(scrubUrl(`query_role_list 网络错误：${err instanceof Error ? err.message : String(err)}`));
   }
-  if (!res.ok) throw new Error(`query_role_list HTTP ${res.status}`);
+  if (!res.ok) throw new RoleQueryError(`query_role_list HTTP ${res.status}`);
   const json: any = await res.json();
-  if (json?.status !== 0) throw new Error(`query_role_list 返回异常 status=${String(json?.status)} msg=${String(json?.msg ?? "")}`);
+  if (json?.status !== 0) {
+    const status = json?.status;
+    const msg = String(json?.msg ?? "");
+    if (status === 101 || String(status) === "101") {
+      throw new RoleQueryError(`该渠道下暂无角色（status=101${msg ? ` ${msg}` : ""}）`, status);
+    }
+    throw new RoleQueryError(`query_role_list 返回异常 status=${String(status)} msg=${msg}`, status);
+  }
   const uid = String(json?.data?.uid ?? "").trim();
   const roles: any[] = Array.isArray(json?.data?.roles) ? json.data.roles : [];
   const role = roles.find((r) => String(r?.serverId ?? "") === serverId) ?? roles[0];
   const roleId = String(role?.roleId ?? "").trim();
-  if (!uid) throw new Error("query_role_list 解析失败：缺少 uid");
-  if (!roleId) throw new Error("query_role_list 解析失败：缺少 roleId");
+  if (!uid) throw new RoleQueryError("query_role_list 解析失败：缺少 uid");
+  if (!roleId) throw new RoleQueryError("query_role_list 解析失败：缺少 roleId");
   return {
     uid,
     roleId,

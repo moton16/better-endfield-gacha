@@ -551,7 +551,15 @@ describe("analysis engine (W1)", () => {
     // up-map.json _comment 等下划线键应被忽略
     const up = makeUpResolver(new Map());
     expect(up.up6("_comment")).toEqual({ ids: [], known: false });
-    expect(up.up6("special_1_0_1")).toEqual({ ids: [], known: false });
+    expect(up.up6("__nonexistent__")).toEqual({ ids: [], known: false });
+    expect(up.up6("special_1_0_1")).toEqual({ ids: ["chr_0016_laevat"], known: true });
+    expect(up.up6("special_1_1_2")).toEqual({ ids: ["chr_0028_wulfa"], known: true });
+    expect(up.up6("joint_1_2_2")).toEqual({
+      ids: ["chr_0016_laevat", "chr_0013_aglina", "chr_0025_ardelia", "chr_0029_pograni"],
+      known: true,
+    });
+    expect(up.up6("weponbox_1_0_1")).toEqual({ ids: ["wpn_sword_0006"], known: true });
+    expect(up.up6("weaponbox_constant_2")).toEqual({ ids: ["wpn_funnel_0013"], known: true });
   });
 
   it("12. 同周期 5★ 陪跑明细 subHits5 与 pendingSubHits5（含 gift 过滤与跨池继承）", () => {

@@ -200,11 +200,16 @@ export function register(router: Router, deps: AppDeps): void {
       throw err;
     }
 
-    const plan = planImport(deps.store, account, lcxRes.records, []);
+    const plan = planImport(deps.store, account, lcxRes.records, [], { allowTruncatedMs: true });
     let backupFile: string | undefined;
     if (apply) {
       const res = applyImport(deps.store, deps.dataDir, account, plan);
       backupFile = path.basename(res.backup);
+    }
+
+    const warnings = [...lcxRes.warnings];
+    if (plan.truncatedMsDuplicates > 0) {
+      warnings.push(`其中 ${plan.truncatedMsDuplicates} 条重复记录仅毫秒位因离愁轩导出截断为 000，已按同一秒归入重复并保留本地精确记录`);
     }
 
     return {
@@ -218,7 +223,7 @@ export function register(router: Router, deps: AppDeps): void {
           skipped: plan.skipped.length,
         },
       ],
-      warnings: lcxRes.warnings,
+      warnings,
       unresolvedPools: lcxRes.unresolvedPools,
       applied: apply,
       ...(backupFile ? { backup: backupFile } : {}),

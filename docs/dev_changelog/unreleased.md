@@ -20,3 +20,13 @@
   - 瘦身顶部 `Header`（移除后台工具栏与表单边框，收束为紧凑头像/昵称/渠道/UID/胶囊动作与 `26px` 总计条）；
   - 总览升级为 `限定 / 复刻 / 武器 / 庆典 / 基准` 5 张 `102px` 不可边框选中横滑卡，徽章改用 `十连双金 xN` 纯黑清晰文字；
   - 出货列表升级为 `限定池 / 复刻池 / 武器池 / 庆典池 / 常驻` 5 栏，默认单行紧凑（`32×32` 低饱和占位块 + `24px` 进度条 + 内联 `已垫N抽`/`超欧`/`歪` 印章），并按 `freeBatches` 展示灰标 `免费十连`；武器十连行修复 `.weapon-avatar-viewport` 为 `flex: 0 1 auto` 使 `第 N 个十连` 紧贴图标结尾。
+
+### [W6-FIX] — 路线 B 空绑定跳过与离愁轩导入体验收口
+- **路线 B 空绑定跳过（`src/core/auth/role.ts`、`src/core/route-b.ts`、`src/server/routes/sync.ts`、`src/web/components/SyncDialog.tsx`）**：
+  - `role.ts` 导出 `RoleQueryError` 与 `isNoRole` 属性，单独区分 `query_role_list` 的 `status=101`（该渠道无角色）与真实接口错误。
+  - `route-b.ts` 在换票前检查 `b.roles.length === 0`（及无回退的 `isNoRole`）并直接跳过、记录警告 `"该渠道下没有角色，已跳过"`（不消耗额外 `grantOAuth` / 不请求 `u8_token_by_uid`），不再产生失败项或让 `beg sync --passport` 误返退出码 `4`。
+  - `server/routes/sync.ts` 与 `SyncDialog.tsx` 对无角色跳过项标为 `ok: true`、`maskedKey: "已跳过（无角色）"` 并按索引去重渲染 `key`。
+- **离愁轩导入与历史 UP 补齐（`src/core/io/importer.ts`、`src/core/io/lcx.ts`、`src/core/data/lcx-catalog.ts`、`src/core/data/up-map.json`、`src/cli/commands/import.ts`、`src/server/routes/importexport.ts`）**：
+  - `planImport` 新增 `allowTruncatedMs`（仅由离愁轩导入启用，保持 `v1` 严格指纹不变）：当官方精准毫秒记录与导出截断 `000` 毫秒记录在 `(itemId, rarity, isFree, kind)` 与整秒上完全一致时归入 `duplicates` / `truncatedMsDuplicates`（保留本地精确记录），`gift_*` 与 `lcx:unknown4` 等实质差异继续留在 `conflicts`；CLI 与 Server 同步给出毫秒截断判重提示。
+  - 新增 `src/core/data/lcx-catalog.ts` 内置国服 1.0~1.7 卡池映射与角色/六星武器官方 ID 映射（卡池优先级 `--pool-map` > 本地同名池 > 内置映射，保留本地歧义报错；物品 ID 优先级本地库 > 内置映射 > `lcx:<name>`）。
+  - 补全 `src/core/data/up-map.json` 中的 1.0~1.7 角色/武器限定池、联合池、复刻池与常驻武器箱 UP 六星清单，并新增 `tests/fixtures/io/lcx-real-shape.json` 与对应单元/集成测试。

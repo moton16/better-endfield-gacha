@@ -9,6 +9,7 @@ import { importCmd } from "../src/cli/commands/import.js";
 import { COMMANDS } from "../src/cli/commands/index.js";
 import { makeContext } from "../src/cli/context.js";
 import { toCsv } from "../src/core/io/csv.js";
+import { analyzeAccount } from "../src/core/analysis/index.js";
 import { applyImport, planImport } from "../src/core/io/importer.js";
 import { parseLcx, type PoolMapEntry } from "../src/core/io/lcx.js";
 import { parseV1 } from "../src/core/io/v1.js";
@@ -548,5 +549,182 @@ describe("W2 import / export / backup", () => {
     expect(csv).toContain("'-minus");
     expect(csv).toContain("'\ttab");
     expect(csv).toContain("\"'\rcr\"");
+  });
+
+  it("12. 离愁轩实机形态边界夹具：4/5/6混用rarity=3未知角色、13位string exportTs、内部数字charId/weaponId不误采、毫秒截断冲突保护", () => {
+    const fixtureText = fs.readFileSync(path.resolve("tests/fixtures/io/lcx-real-shape.json"), "utf8");
+    const acc = mkAccount({ bindingUid: "990011223", roleId: "9900112233" });
+
+    // 本地官方记录含真实毫秒（...932）与一条同 seqId 的非抽卡 gift 记录
+    const officialDraw = mkRecord({
+      poolId: "special_1_0_1",
+      poolName: "测试特许池",
+      itemId: "chr_real_star",
+      itemName: "星辉测试员",
+      rarity: 6,
+      gachaTs: "1760000500932",
+      seqId: "501",
+    });
+    const officialGift = mkRecord({
+      poolId: "special_1_0_1",
+      poolName: "测试特许池",
+      itemId: "",
+      itemName: "寻访情报书",
+      rarity: 0,
+      gachaTs: "1760000501932",
+      seqId: "502",
+      kind: "gift_intel_book",
+    });
+    const officialWeapon = mkRecord({
+      type: "weapon",
+      feed: "weapon:weaponbox_1_0_1",
+      poolType: "special",
+      poolId: "weaponbox_1_0_1",
+      poolName: "测试武器箱",
+      itemId: "wpn_real_xianfeng",
+      itemName: "显锋",
+      itemSubType: "sword",
+      rarity: 5,
+      gachaTs: "1760000400123",
+      seqId: "599",
+    });
+
+    const parsed = parseLcx(fixtureText, { localRecords: [officialDraw, officialGift, officialWeapon], poolMap: {} });
+    expect(parsed.meta.exportTs).toBe(1760000900000);
+    expect(parsed.unresolvedPools).toEqual([]);
+    expect(parsed.warnings.some((w) => w.includes("3/4/5"))).toBe(false);
+    expect(parsed.records).toHaveLength(4);
+
+    // 内部数字 charId/weaponId 不应误采，仍按名称反查本地官方 ID 或降级 lcx:<name>
+    const c6 = parsed.records.find((r) => r.seqId === "501")!;
+    expect(c6.itemId).toBe("chr_real_star");
+    expect(c6.rarity).toBe(6);
+
+    const unk = parsed.records.find((r) => r.seqId === "502")!;
+    expect(unk.itemId).toBe("lcx:unknown4");
+    expect(unk.rarity).toBe(4);
+
+    const w5 = parsed.records.find((r) => r.seqId === "601")!;
+    expect(w5.itemId).toBe("wpn_real_xianfeng");
+    expect(w5.itemSubType).toBe("");
+
+    // 重叠官方记录（毫秒截断差异 501 / gift vs 未知角色 502）：
+    // 默认严格模式均进 conflicts；开启 allowTruncatedMs（离愁轩导入）时 501 归为同秒重复并保留本地精确记录，502 仍进 conflicts
+    const dir = mkTempDir();
+    const store = GachaStore.open(dir);
+    store.upsertAccount(acc);
+    store.insertRecords(acc.accountKey, [officialDraw, officialGift, officialWeapon]);
+    const strictPlan = planImport(store, acc, parsed.records, []);
+    expect(strictPlan.newRecords.map((r) => r.seqId)).toEqual(["503", "601"]);
+    expect(strictPlan.truncatedMsDuplicates).toBe(0);
+    expect(strictPlan.conflicts.map((c) => c.seqId)).toEqual(["501", "502"]);
+
+    const lcxPlan = planImport(store, acc, parsed.records, [], { allowTruncatedMs: true });
+    expect(lcxPlan.newRecords.map((r) => r.seqId)).toEqual(["503", "601"]);
+    expect(lcxPlan.duplicates).toBe(1);
+    expect(lcxPlan.truncatedMsDuplicates).toBe(1);
+    expect(lcxPlan.conflicts.map((c) => c.seqId)).toEqual(["502"]);
+    store.close();
+  });
+
+  it("13. 离愁轩内置卡池/物品表：空库无需 --pool-map 即可导入 1.0~1.4 旧池与常驻池并衔接 UP 分析，遵循映射优先级", () => {
+    const dir = mkTempDir();
+    const store = GachaStore.open(dir);
+    try {
+      const acc = mkAccount();
+      store.upsertAccount(acc);
+
+      const raw = JSON.stringify({
+        code: 0,
+        data: {
+          uid: "synth_uid_13",
+          export_timestamp: 1775000900,
+          total: 7,
+          list: [
+            { seqId: "1", gachaTs: 1770000100, rarity: 5, poolName: "熔火灼痕", isFree: false, charName: "莱万汀", charId: "999" },
+            { seqId: "2", gachaTs: 1770000200, rarity: 5, poolName: "熔火灼痕", isFree: false, charName: "余烬", charId: "998" },
+            { seqId: "3", gachaTs: 1770000300, rarity: 4, poolName: "基础寻访", isFree: false, charName: "佩丽卡" },
+            { seqId: "4", gachaTs: 1770000400, rarity: 5, poolName: "辉光庆典", isFree: false, charName: "艾尔黛拉" },
+            { seqId: "5", gachaTs: 1770000500, rarity: 3, poolName: "未收录测试新池", isFree: false, charName: "荧光棒测试角色" },
+            { seqId: "101", gachaTs: 1770000600, rarity: 5, poolName: "熔铸申领", isFree: false, weaponName: "熔铸火焰", weaponId: "888" },
+            { seqId: "102", gachaTs: 1770000700, rarity: 5, poolName: "星声申领", isFree: false, weaponName: "沧溟星梦" },
+          ],
+        },
+      });
+
+      // 空库、空 poolMap：除“未收录测试新池”外全部自动识别，并映射官方 ID
+      const parsed = parseLcx(raw, { localRecords: [], poolMap: {} });
+      expect(parsed.unresolvedPools).toEqual(["未收录测试新池"]);
+      expect(parsed.ambiguous).toEqual([]);
+      expect(parsed.records).toHaveLength(6);
+
+      const r1 = parsed.records.find((r) => r.seqId === "1")!;
+      expect(r1.poolId).toBe("special_1_0_1");
+      expect(r1.itemId).toBe("chr_0016_laevat");
+      const r2 = parsed.records.find((r) => r.seqId === "2")!;
+      expect(r2.itemId).toBe("chr_0009_azrila");
+      const r4 = parsed.records.find((r) => r.seqId === "4")!;
+      expect(r4.poolId).toBe("joint_1_2_2");
+      expect(r4.itemId).toBe("chr_0025_ardelia");
+      const w1 = parsed.records.find((r) => r.seqId === "101")!;
+      expect(w1.poolId).toBe("weponbox_1_0_1");
+      expect(w1.itemId).toBe("wpn_sword_0006");
+      const w2 = parsed.records.find((r) => r.seqId === "102")!;
+      expect(w2.poolId).toBe("weaponbox_constant_2");
+      expect(w2.itemId).toBe("wpn_funnel_0013");
+
+      // 入库并分析：1.0 旧池可正确判定 UP/歪
+      const plan = planImport(store, acc, parsed.records, [], { allowTruncatedMs: true });
+      applyImport(store, dir, acc, plan);
+      const analysis = analyzeAccount({
+        accountKey: acc.accountKey,
+        records: store.getRecords(acc.accountKey),
+        pools: store.getAllPools(),
+        rerunChar: [],
+        rerunWeapon: [],
+      });
+      const allHits6 = analysis.groups.flatMap((g) => g.hits);
+      const laevatHit = allHits6.find((h) => h.seqId === "1")!;
+      const offHit = allHits6.find((h) => h.seqId === "2")!;
+      const jointHit = allHits6.find((h) => h.seqId === "4")!;
+      const wpnHit = allHits6.find((h) => h.seqId === "101")!;
+      expect(laevatHit.isUp).toBe(true);
+      expect(offHit.isUp).toBe(false);
+      expect(jointHit.isUp).toBe(true);
+      expect(wpnHit.isUp).toBe(true);
+
+      // 优先级：--pool-map > 本地 DB > 内置表；本地同名歧义不会被内置表静默掩盖
+      const localRecA = mkRecord({
+        seqId: "1",
+        poolId: "local_override_1",
+        poolName: "熔火灼痕",
+        poolType: "E_CharacterGachaPoolType_Special",
+        feed: "char:E_CharacterGachaPoolType_Special",
+        itemId: "chr_0016_laevat",
+        itemName: "莱万汀",
+      });
+      const overByLocal = parseLcx(raw, { localRecords: [localRecA], poolMap: {} });
+      expect(overByLocal.records.find((r) => r.seqId === "1")?.poolId).toBe("local_override_1");
+
+      const overByFlag = parseLcx(raw, {
+        localRecords: [localRecA],
+        poolMap: { 熔火灼痕: { feed: "char:E_CharacterGachaPoolType_Special", poolId: "flag_override", poolType: "E_CharacterGachaPoolType_Special" } },
+      });
+      expect(overByFlag.records.find((r) => r.seqId === "1")?.poolId).toBe("flag_override");
+
+      const localRecB = mkRecord({
+        seqId: "2",
+        poolId: "local_override_2",
+        poolName: "熔火灼痕",
+        poolType: "E_CharacterGachaPoolType_Special",
+        feed: "char:E_CharacterGachaPoolType_Special",
+        itemId: "chr_0016_laevat",
+        itemName: "莱万汀",
+      });
+      const amb = parseLcx(raw, { localRecords: [localRecA, localRecB], poolMap: {} });
+      expect(amb.ambiguous).toContain("熔火灼痕");
+    } finally {
+      store.close();
+    }
   });
 });

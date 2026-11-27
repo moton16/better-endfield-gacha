@@ -1,9 +1,13 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { COMMANDS } from "../src/cli/commands/index.js";
 import { parseProvider } from "../src/cli/commands/login.js";
 import { makeContext } from "../src/cli/context.js";
 import { maskKey, maskName } from "../src/cli/util.js";
 import { PROVIDERS } from "../src/core/auth/passport.js";
+import { queryRoleList, RoleQueryError } from "../src/core/auth/role.js";
 import { inspectPassport, syncFromPassport } from "../src/core/route-b.js";
 import { GachaStore } from "../src/core/storage/store.js";
 import { combineFetch, readJsonBodyToken } from "./helpers/combine-fetch.js";
@@ -190,30 +194,70 @@ describe("路线 B（syncFromPassport / inspectPassport）", () => {
     expect(items[1]?.report?.ok).toBe(true);
   });
 
-  it("query_role_list 失败且 roles 为空时仅该绑定报错，不影响其它绑定", async () => {
-    const u8NoRole = fakeToken("nr");
+  it("roles 为空时跳过该绑定并记警告（不报错、不发 u8 换票），CLI sync --passport 返回退出码 0", async () => {
     const u8Ok = fakeToken("ok");
+    let u8NoRoleCalled = false;
     const pp = createFakePassport({
       hytoken: fakeHy,
       bindings: [
-        { uid: "NO_ROLE_UID", channelMasterId: 2, channelName: "bilibili服", roles: [], u8Token: u8NoRole },
+        { uid: "NO_ROLE_UID", channelMasterId: 1, channelName: "官服", roles: [], u8Token: "SHOULD_NOT_EXCHANGE" },
         { uid: "OK_UID", channelMasterId: 2, channelName: "bilibili服", roles: [{ roleId: "9001", nickName: "正常" }], u8Token: u8Ok },
       ],
+      override: (url, body) => {
+        if (url.pathname === "/account/binding/v1/u8_token_by_uid" && body?.uid === "NO_ROLE_UID") {
+          u8NoRoleCalled = true;
+        }
+        return undefined;
+      },
     });
     const srvOk = createFakeServer(mkServerData(u8Ok, 71, { uid: "OK_UID", roleId: "9001", nickname: "正常" }));
-    const f = combineFetch(
-      routePassport(pp),
-      {
-        match: (url, init) => url.hostname.startsWith("u8.") && readJsonBodyToken(init) === u8NoRole,
-        fetch: (async () => new Response(JSON.stringify({ status: 500 }), { status: 500 })) as typeof fetch,
-      },
-      routeEf(u8Ok, srvOk),
-    );
+    const f = combineFetch(routePassport(pp), routeEf(u8Ok, srvOk));
 
     const items = await syncFromPassport({ store, hytoken: fakeHy, fetch: f, sleep: noSleep });
     expect(items).toHaveLength(2);
-    expect(items[0]?.error).toContain("query_role_list");
+    expect(u8NoRoleCalled).toBe(false);
+    expect(items[0]?.error).toBeUndefined();
+    expect(items[0]?.account).toBeUndefined();
+    expect(items[0]?.warnings.some((w) => w.includes("没有角色"))).toBe(true);
+    expect(items[1]?.error).toBeUndefined();
     expect(items[1]?.report?.ok).toBe(true);
+
+    // 验证 CLI `beg sync --passport` 遇到空绑定+正常绑定时退出码为 0（而非 4）
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "beg-cli-empty-bind-"));
+    const prevHy = process.env.BEG_HYTOKEN;
+    vi.stubGlobal("fetch", f);
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      process.env.BEG_HYTOKEN = fakeHy;
+      const syncCmd = COMMANDS.find((c) => c.name === "sync")!;
+      const exitCode = await syncCmd.run(makeContext(["sync", "--passport", "--data-dir", tmpDir]));
+      expect(exitCode).toBe(0);
+      expect(errSpy).not.toHaveBeenCalled();
+    } finally {
+      if (prevHy === undefined) delete process.env.BEG_HYTOKEN;
+      else process.env.BEG_HYTOKEN = prevHy;
+      logSpy.mockRestore();
+      errSpy.mockRestore();
+      vi.unstubAllGlobals();
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("queryRoleList 区分 status=101 无角色（RoleQueryError.isNoRole=true）与其它异常", async () => {
+    const f101 = (async () =>
+      new Response(JSON.stringify({ status: 101, msg: "not found role" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })) as typeof fetch;
+    await expect(queryRoleList("t", "cn", "1", f101)).rejects.toSatisfy(
+      (err: unknown) => err instanceof RoleQueryError && err.isNoRole === true && err.status === 101,
+    );
+
+    const f500 = (async () => new Response(JSON.stringify({ status: 500 }), { status: 500 })) as typeof fetch;
+    await expect(queryRoleList("t", "cn", "1", f500)).rejects.toSatisfy(
+      (err: unknown) => err instanceof RoleQueryError && err.isNoRole === false,
+    );
   });
 
   it("无任何可用绑定时抛出含 B 服绑定提示的错误", async () => {
