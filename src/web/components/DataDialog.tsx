@@ -26,10 +26,10 @@ function fmtBytes(n: number): string {
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
-function PlanResult({ res, doneText, dryText }: { res: ImportResponse; doneText: string; dryText: string }) {
+function PlanResult({ res, title }: { res: ImportResponse; title: string }) {
   return (
-    <div class="info-box" aria-label="预览结果">
-      <div>{res.applied ? doneText : dryText}</div>
+    <div class="info-box" aria-label={title}>
+      <div>{title}</div>
       <ul class="list-plain">
         {res.plans.map((p) => (
           <li key={p.maskedKey}>
@@ -78,11 +78,10 @@ export function DataDialog({
   // 空串 = 自动：v1 导入文件内全部账号；离愁轩按文件 UID 匹配已有账号，找不到则新建
   const [targetAccount, setTargetAccount] = useState("");
   const [detectedLcx, setDetectedLcx] = useState(false);
-  const [preview, setPreview] = useState<ImportResponse | null>(null);
+  const [importResult, setImportResult] = useState<ImportResponse | null>(null);
 
   const [backups, setBackups] = useState<BackupListResponse | null>(null);
-  const [restoreFile, setRestoreFile] = useState("");
-  const [restorePreview, setRestorePreview] = useState<ImportResponse | null>(null);
+  const [restoreResult, setRestoreResult] = useState<ImportResponse | null>(null);
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -138,7 +137,7 @@ export function DataDialog({
 
   async function handleFileChange(e: Event) {
     setError(null);
-    setPreview(null);
+    setImportResult(null);
     const input = e.target as HTMLInputElement;
     const file = input.files?.[0];
     if (!file) {
@@ -160,7 +159,7 @@ export function DataDialog({
     setDetectedLcx(sniffLcxText(text));
   }
 
-  async function runImport(apply: boolean) {
+  async function runImport() {
     if (!fileText.trim()) {
       setError("请先选择导入文件");
       return;
@@ -174,16 +173,14 @@ export function DataDialog({
           text: fileText,
           format,
           ...(targetAccount ? { account: targetAccount } : isLcx ? { createAccount: true } : {}),
-          apply,
+          apply: true,
         },
       });
-      setPreview(res);
-      if (apply) {
-        const added = res.plans.reduce((s, p) => s + p.added, 0);
-        await onDataChanged();
-        void loadBackups();
-        onToast(`导入完成，新增 ${added} 条${res.backup ? `（已备份：${res.backup}）` : ""}`);
-      }
+      setImportResult(res);
+      const added = res.plans.reduce((s, p) => s + p.added, 0);
+      await onDataChanged();
+      void loadBackups();
+      onToast(`导入完成，新增 ${added} 条${res.backup ? `（已备份：${res.backup}）` : ""}`);
     } catch (err) {
       fail(err);
     } finally {
@@ -205,19 +202,16 @@ export function DataDialog({
     }
   }
 
-  async function runRestore(file: string, apply: boolean) {
+  async function runRestore(file: string) {
     setBusy(true);
     setError(null);
     try {
-      const res = await api<ImportResponse>("/api/backup/restore", { method: "POST", body: { file, apply } });
-      setRestoreFile(file);
-      setRestorePreview(res);
-      if (apply) {
-        const added = res.plans.reduce((s, p) => s + p.added, 0);
-        await onDataChanged();
-        await loadBackups();
-        onToast(`恢复完成，补回 ${added} 条`);
-      }
+      const res = await api<ImportResponse>("/api/backup/restore", { method: "POST", body: { file, apply: true } });
+      setRestoreResult(res);
+      const added = res.plans.reduce((s, p) => s + p.added, 0);
+      await onDataChanged();
+      await loadBackups();
+      onToast(`恢复完成，补回 ${added} 条`);
     } catch (err) {
       fail(err);
     } finally {
@@ -296,9 +290,9 @@ export function DataDialog({
         </section>
 
         <section class="info-box">
-          <strong>导入 JSON（先预览，再确认写入）</strong>
+          <strong>导入 JSON</strong>
           <div class="muted" style={{ margin: "4px 0 6px" }}>
-            支持本工具导出的 JSON 与离愁轩 JSON。空库也能直接导入离愁轩文件，会自动按文件内 UID 建账号。
+            支持本工具导出的 JSON 与离愁轩 JSON；空库可直接导入离愁轩文件（按文件内 UID 建账号）。写入前会自动备份当前数据库，且不会覆盖已有官方记录。
           </div>
           <div class="field">
             <label htmlFor="import-file">选择文件（上限 60 MB）</label>
@@ -341,24 +335,16 @@ export function DataDialog({
           <div class="row-inline">
             <button
               type="button"
-              class="btn"
-              disabled={busy || !fileText}
-              onClick={() => void runImport(false)}
-            >
-              预览导入（干跑）
-            </button>
-            <button
-              type="button"
               class="btn primary"
-              disabled={busy || !preview || preview.applied}
-              onClick={() => void runImport(true)}
+              disabled={busy || !fileText}
+              onClick={() => void runImport()}
             >
-              确认导入
+              导入
             </button>
           </div>
         </section>
 
-        {preview && <PlanResult res={preview} doneText="导入已完成：" dryText="干跑预览：" />}
+        {importResult && <PlanResult res={importResult} title="导入已完成：" />}
 
         <section class="info-box">
           <strong>备份与恢复</strong>
@@ -389,19 +375,9 @@ export function DataDialog({
                     {new Date(f.mtime).toLocaleString()} · {fmtBytes(f.size)}
                   </div>
                   <div class="row-inline" style={{ marginTop: "4px" }}>
-                    <button type="button" class="btn" disabled={busy} onClick={() => void runRestore(f.file, false)}>
-                      预览恢复
+                    <button type="button" class="btn" disabled={busy} onClick={() => void runRestore(f.file)}>
+                      恢复
                     </button>
-                    {restoreFile === f.file && restorePreview && !restorePreview.applied && (
-                      <button
-                        type="button"
-                        class="btn primary"
-                        disabled={busy}
-                        onClick={() => void runRestore(f.file, true)}
-                      >
-                        确认恢复
-                      </button>
-                    )}
                   </div>
                 </li>
               ))}
@@ -409,9 +385,7 @@ export function DataDialog({
           )}
         </section>
 
-        {restorePreview && (
-          <PlanResult res={restorePreview} doneText="恢复已完成：" dryText="恢复预览（未写入）：" />
-        )}
+        {restoreResult && <PlanResult res={restoreResult} title="恢复已完成：" />}
       </div>
     </div>
   );

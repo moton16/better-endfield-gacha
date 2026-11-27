@@ -185,7 +185,7 @@ describe("Web UI mock mode & interactions", () => {
     expect(await screen.findByText(/已清除全部本地加密会话/)).toBeTruthy();
   });
 
-  it("handles DataDialog export-to-disk, lcx auto-account (empty library), v1 dry-run -> apply, backup list and restore", async () => {
+  it("handles DataDialog export-to-disk, one-click lcx/v1 import, and one-click backup restore", async () => {
     render(<App />);
     await screen.findByText("合成特许寻访二期");
 
@@ -201,14 +201,15 @@ describe("Web UI mock mode & interactions", () => {
     fireEvent.click(screen.getByRole("button", { name: "立即备份数据库" }));
     expect((await screen.findAllByText(/gacha-backup-mock\.sqlite/)).length).toBeGreaterThan(0);
 
-    // 备份恢复：先预览，再确认
-    fireEvent.click(screen.getByRole("button", { name: "预览恢复" }));
-    expect(await screen.findByText(/恢复预览（未写入）/)).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "确认恢复" }));
+    // 备份恢复：一键直接恢复
+    fireEvent.click(screen.getByRole("button", { name: "恢复" }));
     expect(await screen.findByText(/恢复已完成/)).toBeTruthy();
 
-    // 离愁轩文件 + 自动账号：无需手选账号，预览按钮可用（空库也能导入）
+    // 离愁轩文件 + 自动账号：选文件后「导入」立即可点，无需前置预览步骤
     const fileInput = screen.getByLabelText(/选择文件/) as HTMLInputElement;
+    const importBtn = screen.getByRole("button", { name: "导入" }) as HTMLButtonElement;
+    expect(importBtn.disabled).toBe(true);
+
     const lcxPayload = JSON.stringify({ list: [{ poolName: "x", itemName: "y", rarity: 6 }] });
     const lcxFile = {
       name: "lcx.json",
@@ -218,12 +219,12 @@ describe("Web UI mock mode & interactions", () => {
     fireEvent.change(screen.getByLabelText(/导入到哪个账号/), { target: { value: "" } });
     fireEvent.change(fileInput, { target: { files: [lcxFile] } });
 
-    const previewBtn = screen.getByRole("button", { name: "预览导入（干跑）" }) as HTMLButtonElement;
     await waitFor(() => {
-      expect(previewBtn.disabled).toBe(false);
+      expect(importBtn.disabled).toBe(false);
     });
     expect(screen.queryByText(/必须先选择目标账号/)).toBeNull();
-    // Upload a v1 JSON -> dry-run then apply
+
+    // 上传 v1 JSON：一键点击「导入」直接执行并展示结果
     const v1Payload = JSON.stringify({ format: "better-endfield-gacha/v1", accounts: [] });
     const v1File = {
       name: "v1.json",
@@ -233,16 +234,11 @@ describe("Web UI mock mode & interactions", () => {
     fireEvent.change(fileInput, { target: { files: [v1File] } });
 
     await waitFor(() => {
-      expect(previewBtn.disabled).toBe(false);
+      expect(importBtn.disabled).toBe(false);
     });
-    fireEvent.click(previewBtn);
-    expect(await screen.findByText(/干跑预览/)).toBeTruthy();
-    expect(screen.getByText(/新增 12/)).toBeTruthy();
-
-    const applyBtn = screen.getByRole("button", { name: "确认导入" }) as HTMLButtonElement;
-    expect(applyBtn.disabled).toBe(false);
-    fireEvent.click(applyBtn);
+    fireEvent.click(importBtn);
     expect(await screen.findByText(/导入已完成/)).toBeTruthy();
+    expect(screen.getByText(/新增 12/)).toBeTruthy();
   });
 
   it("escapes untrusted XSS payloads in nickname, pool title, itemName, and notes (without global field)", async () => {

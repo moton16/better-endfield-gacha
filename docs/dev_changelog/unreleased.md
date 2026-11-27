@@ -40,3 +40,7 @@
 - **`src/core/analysis/rating.ts`（新） / `summary.ts` / `src/web/lib/bar.ts` / `tsconfig.web.json`**：将原先按小保底水位的称号逻辑抽离为 Core 与 Web 共用的 `computeRating`，按池期望抽数（角色 50 / 武器 19）加权计算综合出货指数，对限定/复刻/武器池已知 UP ≥ 4 的付费 6★ 应用歪率标准差偏移 $Z$（`±1` 升降一档），并对 `< 5` 付费 6★ 启用小样本极端档位保护。
 - **夹具与文档**：同步更新 `docs/DEVELOPER.md`、`src/web/mock/analysis.sample.json`、`tests/fixtures/server/analysis.json`、`tests/analysis.test.ts`、`tests/web-bar.test.tsx`、`tests/web-ui.test.tsx`。
 - **局部验证**：`tsc -p tsconfig.json`、`tsc -p tsconfig.web.json` 与 `vitest run tests/analysis.test.ts tests/web-bar.test.tsx tests/web-ui.test.tsx`（36 passed）。
+
+### [DATA-IO-ONECLICK] — Vodyanitsaaa,2026-11-27,Antigravity,Gemini 4 Hydrogen — fix(web): 合并 DataDialog 导入与恢复为单步操作，消除前置干跑门控
+- **`src/web/components/DataDialog.tsx`**：移除「预览导入（干跑）」→「确认导入」与「预览恢复」→「确认恢复」的两步禁用门控，统一简化为单枚「导入」主按钮与各备份条目的单枚「恢复」按钮，点击后直接 `apply: true` 写入（后端仍自动在操作前备份 `.sqlite` 且官方记录永不覆盖）并展示结果明细（总计/新增/重复/冲突/跳过/警告/未识别卡池/自动备份文件名）。
+- **文档与局部测试**：更新 `tests/web-ui.test.tsx`、`docs/DEVELOPER.md`、`CHANGELOG.md`、`QUICKSTART.md`；仅跑 `tsc` 与局部相关测试 `tests/web-ui.test.tsx`。
