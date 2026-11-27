@@ -52,3 +52,9 @@
   2. 角色横幅定位至 `left: 38%; right: 0`（配套左缘渐变羽化与背景遮罩 `37.5% -> 60%`），人物正脸露在右侧亮区且不与左侧文字相撞；无横幅池回退 `96px` 柔和头像。
   3. 武器头图放大至 `113px × 113px` 并右移至 `left: 49%`，以 `opacity: 0.65`、`filter: blur(0.9px) saturate(0.9)` 与径向羽化融入 `.theme-weapon` 暖橙渐层；同时移除头栏多余的 `大保底余 xx`。
 - **局部验证**：`pnpm typecheck`、`vitest run tests/web-media.test.tsx tests/web-bar.test.tsx` 与 `pnpm web:build` 通过。
+
+### [CI-FIX] — Vodyanitsaaa,2026-11-27,Antigravity,Gemini 4 Hydrogen — fix(ci): 修复 pnpm 版本冲突并将全量测试收敛至正式发版 Tag
+- **`.github/workflows/ci.yml`**：
+  - 移除 `pnpm/action-setup@v4` 重复的 `with: version: 11`，改为单一读取 `package.json` 的 `packageManager` 字段，解决 `Error: Multiple versions of pnpm specified`。
+  - 为 `pnpm test` 增加条件 `if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-')`（固定 `BEG_RELEASE: "1"`），使常规分支与 PR 仅运行 `typecheck` + `build` + 产物校验，仅正式版 Tag 触发全量测试。
+- **文档**：同步更新 `docs/DEVELOPER.md` §2 与 §7 说明。

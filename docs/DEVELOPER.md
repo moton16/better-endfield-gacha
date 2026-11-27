@@ -50,7 +50,7 @@
 │   ├── pack.ps1             # Windows CLI 免安装便携 zip 构建、Node SHA256 校验与真机解压冒烟
 │   └── pack-tauri.ps1       # Tauri NSIS 安装包 + Desktop Portable zip 构建、Node 签名校验与 .sha256
 ├── .github/workflows/
-│   └── ci.yml               # Windows + Ubuntu CI 矩阵（typecheck / test / build / 产物校验）
+│   └── ci.yml               # Windows + Ubuntu CI 矩阵（typecheck / build / 产物校验；仅正式版 Tag 跑全量 test）
 ├── tests/                   # vitest（含 qr/route-a-persist/serve-host/up-override/web-media/tauri-shell 等）
 └── docs/                    # DEVELOPER.md（本文）+ dev_changelog/（v0.1.md / unreleased.md）；其余被 gitignore
 ```
@@ -154,7 +154,7 @@ pnpm web:dev                                    # 启动 Vite 前端开发服务
 - **CLI 命令**：在 `src/cli/commands/` 新增命令文件，按需在 `src/cli/context.ts` 的 `OPTIONS` 末尾追加选项，并在 `src/cli/commands/index.ts` 末尾追加注册。
 
 ### 本机打包流程（Windows CLI 便携版 / Tauri 桌面版）
-目前 `.github/workflows/ci.yml` 仅负责双平台检查与构建，分发产物均通过 `scripts/` 在本机生成并落入 `release/`（缓存与临时目录同盘落 `release/_cache` / `_stage` / `_smoke_tmp` / `_tauri_stage` / `_tauri_tmp`，不写入系统临时盘）：
+目前 `.github/workflows/ci.yml` 默认仅负责双平台检查与构建（仅正式版 Tag 触发全量 `pnpm test`），分发产物均通过 `scripts/` 在本机生成并落入 `release/`（缓存与临时目录同盘落 `release/_cache` / `_stage` / `_smoke_tmp` / `_tauri_stage` / `_tauri_tmp`，不写入系统临时盘）：
 
 1. **CLI 便携版（`pnpm pack` → `scripts/pack.ps1`）**：
    - 依赖：`Node.js >= 22.13`（推荐 24）+ `pnpm`；可选 `-SkipChecks`（非发版期跳过 `install`/`typecheck`）、`-WithTests`；
