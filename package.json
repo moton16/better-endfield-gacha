@@ -1,6 +1,6 @@
 {
   "name": "better-endfield-gacha",
-  "version": "0.1.0-rc.1",
+  "version": "0.1.0-rc.2",
   "description": "终末地抽卡链接提取与抽卡记录管理/分析工具（B 服 / 官服 / 国际服）",
   "license": "MIT",
   "private": true,

@@ -137,7 +137,7 @@ pnpm web:dev                                    # 启动 Vite 前端开发服务
 
 - **Rust 桌面壳测试**：日常修改 `src-tauri/` 仅执行 `cargo check --all-targets` 或 `cargo test <单测名>`；全量 `cargo test`（覆盖 `%TEMP%`/只读目录守卫、`#k=` 内存解析与脱敏、`on_navigation` 白名单、WebView2 注册表版本校验）仅在正式发版时运行。
 - **构建预算与零外链**：`tests/web-build.test.ts` 拆分校验构建体积——除 `media/` 外的代码与字体 `< 200 KB`，`media/` 静态媒体资源 `< 10 MB`，且 HTML/CSS/JSON 零外链 HTTP URL（`manifest.json` 同步产出至 `dist-web/media/manifest.json`）。
-- **版本守卫**：开发与候选阶段使用 `-dev` / `-rc.1` 预发布后缀（当前 `0.1.0-rc.1`）；设 `BEG_RELEASE=1` 时 `tests/version-guard.test.ts` 会拦截预发布后缀并校验 `package.json`、`src/version.ts`、`README.md` 徽章与 `CHANGELOG.md` 顶部条目严格一致。
+- **版本守卫**：开发与候选阶段使用 `-dev` / `-rc.*` 预发布后缀（当前 `0.1.0-rc.2`）；设 `BEG_RELEASE=1` 时 `tests/version-guard.test.ts` 会拦截预发布后缀并校验 `package.json`、`src/version.ts`、`README.md` 徽章与 `CHANGELOG.md` 顶部条目严格一致。
 - **测试隔离**：测试一律使用 `:memory:` 或 `os.tmpdir()` 与合成夹具（`tests/helpers/`、`tests/fixtures/`），**禁止**读写真实 `%LOCALAPPDATA%` 或真实 token；打包缓存与冒烟临时目录一律放在仓库同盘 `release/` 下，禁止写 `C:\` 或系统 `$env:TEMP`。
 - **许可证与版权边界**：MIT 致谢登记在 `NOTICE.md`，运行期依赖清单由 `pnpm licenses list --prod --json` 生成至 `THIRD_PARTY.md`；`mon3tr-dev/endprotocol` 为 **AGPL-3.0，仅参考公开协议描述，严禁拷贝代码**；`NOTICE.md` 明确声明 **MIT 仅适用项目源码，置于 `src/web/public/media/` 与 `dist-web/media/` 的游戏衍生美术资产版权归鹰角网络所有、不适用 MIT 许可**。
 - **文档规范**：架构/接口变更须同批次原地更新本文档（保持 ≤ 800 行、7 节现态）；技术流水按次版本号归档在 `docs/dev_changelog/`（非溯源不读，每次 commit 须按 `GitHub用户名,YYYY-MM-DD,Agent[,模型]` 口径在 `docs/dev_changelog/unreleased.md` 追加记录）；`README.md` / `QUICKSTART.md` / `CHANGELOG.md` 禁止泄露内部代码细节。

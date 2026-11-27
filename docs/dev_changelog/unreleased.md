@@ -58,3 +58,7 @@
   - 移除 `pnpm/action-setup@v4` 重复的 `with: version: 11`，改为单一读取 `package.json` 的 `packageManager` 字段，解决 `Error: Multiple versions of pnpm specified`。
   - 为 `pnpm test` 增加条件 `if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-')`（固定 `BEG_RELEASE: "1"`），使常规分支与 PR 仅运行 `typecheck` + `build` + 产物校验，仅正式版 Tag 触发全量测试。
 - **文档**：同步更新 `docs/DEVELOPER.md` §2 与 §7 说明。
+
+### [RELEASE-RC2] — Vodyanitsaaa,2026-11-27,Antigravity,Gemini 4 Hydrogen — chore(release): 推进发布候选版本至 0.1.0-rc.2 并产出分发包
+- **版本锚点与文档**：`package.json`、`src/version.ts`、`README.md`、`CHANGELOG.md`、`docs/DEVELOPER.md` 同步升级至 `0.1.0-rc.2`（`src-tauri/Cargo.toml` 与 `src-tauri/tauri.conf.json` 保持 `0.1.0` 三段式以兼容 Windows 安装器）。
+- **局部校验与打包**：通过 `tsc`、`tests/{version-guard,tauri-shell,web-build}.test.ts`、`cargo check --all-targets`，并运行 `scripts/pack.ps1` 与 `scripts/pack-tauri.ps1` 构建 `0.1.0-rc.2` CLI 便携包、NSIS 安装包及 Desktop 便携包（附 `.sha256`）后发布 GitHub Pre-release `v0.1.0-rc.2`。
