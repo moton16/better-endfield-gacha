@@ -31,6 +31,7 @@ export const OPTIONS = {
   "include-gifts": { type: "boolean" },
   "parent-pid": { type: "string" },
   "watch-stdin": { type: "boolean" },
+  "new-account": { type: "boolean" },
 } as const;
 
 export interface CliContext {

@@ -185,6 +185,27 @@ export interface ImportResponse {
   unresolvedPools: string[];
   applied: boolean;
   backup?: string;
+  /** 离愁轩：本次按文件 UID 新建了账号 */
+  createdAccount?: boolean;
+}
+
+export interface ExportSaveResponse {
+  file: string;
+  dir: string;
+  bytes: number;
+  accounts: number;
+  records: number;
+}
+
+export interface BackupFileInfo {
+  file: string;
+  size: number;
+  mtime: number;
+}
+
+export interface BackupListResponse {
+  dir: string;
+  files: BackupFileInfo[];
 }
 
 export interface BackupResponse {

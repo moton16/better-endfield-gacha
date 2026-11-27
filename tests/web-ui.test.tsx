@@ -185,29 +185,29 @@ describe("Web UI mock mode & interactions", () => {
     expect(await screen.findByText(/已清除全部本地加密会话/)).toBeTruthy();
   });
 
-  it("handles DataDialog export, v1 dry-run -> apply, lcx account guard, and backup", async () => {
-    const createUrl = vi.fn(() => "blob:mock-export");
-    const revokeUrl = vi.fn();
-    vi.stubGlobal("URL", { createObjectURL: createUrl, revokeObjectURL: revokeUrl });
-    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
-
+  it("handles DataDialog export-to-disk, lcx auto-account (empty library), v1 dry-run -> apply, backup list and restore", async () => {
     render(<App />);
     await screen.findByText("合成特许寻访二期");
 
     fireEvent.click(screen.getByRole("button", { name: "导入/导出" }));
 
-    // Export CSV & JSON
+    // 导出直接落盘并显示位置，不再依赖浏览器下载
     fireEvent.click(screen.getByRole("button", { name: "导出 CSV" }));
-    expect(await screen.findByText("已导出 CSV 文件")).toBeTruthy();
-    expect(createUrl).toHaveBeenCalled();
-    expect(clickSpy).toHaveBeenCalled();
-    clickSpy.mockRestore();
+    expect(await screen.findByText(/已保存：beg-export-mock\.csv/)).toBeTruthy();
+    expect(screen.getByText(/位置：C:\\mock\\data\\exports/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "打开导出文件夹" })).toBeTruthy();
 
-    // Backup
+    // Backup（立即备份后刷新备份列表）
     fireEvent.click(screen.getByRole("button", { name: "立即备份数据库" }));
-    expect(await screen.findByText(/gacha-backup-mock\.sqlite/)).toBeTruthy();
+    expect((await screen.findAllByText(/gacha-backup-mock\.sqlite/)).length).toBeGreaterThan(0);
 
-    // Upload a mock lcx JSON while clearing targetAccount -> should block preview
+    // 备份恢复：先预览，再确认
+    fireEvent.click(screen.getByRole("button", { name: "预览恢复" }));
+    expect(await screen.findByText(/恢复预览（未写入）/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "确认恢复" }));
+    expect(await screen.findByText(/恢复已完成/)).toBeTruthy();
+
+    // 离愁轩文件 + 自动账号：无需手选账号，预览按钮可用（空库也能导入）
     const fileInput = screen.getByLabelText(/选择文件/) as HTMLInputElement;
     const lcxPayload = JSON.stringify({ list: [{ poolName: "x", itemName: "y", rarity: 6 }] });
     const lcxFile = {
@@ -215,15 +215,14 @@ describe("Web UI mock mode & interactions", () => {
       size: lcxPayload.length,
       text: async () => lcxPayload,
     } as unknown as File;
-    fireEvent.change(screen.getByLabelText(/目标账号/), { target: { value: "" } });
+    fireEvent.change(screen.getByLabelText(/导入到哪个账号/), { target: { value: "" } });
     fireEvent.change(fileInput, { target: { files: [lcxFile] } });
 
-    await waitFor(() => {
-      expect(screen.getByText(/离愁轩格式导入必须先选择目标账号/)).toBeTruthy();
-    });
     const previewBtn = screen.getByRole("button", { name: "预览导入（干跑）" }) as HTMLButtonElement;
-    expect(previewBtn.disabled).toBe(true);
-
+    await waitFor(() => {
+      expect(previewBtn.disabled).toBe(false);
+    });
+    expect(screen.queryByText(/必须先选择目标账号/)).toBeNull();
     // Upload a v1 JSON -> dry-run then apply
     const v1Payload = JSON.stringify({ format: "better-endfield-gacha/v1", accounts: [] });
     const v1File = {

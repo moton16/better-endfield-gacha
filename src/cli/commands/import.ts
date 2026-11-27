@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import { applyImport, planImport, type ImportPlan } from "../../core/io/importer.js";
-import { looksLikeLcx, parseLcx, type PoolMapEntry } from "../../core/io/lcx.js";
+import { looksLikeLcx, parseLcx, readLcxMeta, resolveLcxAccount, type PoolMapEntry } from "../../core/io/lcx.js";
 import { parseV1 } from "../../core/io/v1.js";
 import { ImportError, LIMITS } from "../../core/io/validate.js";
 import { GachaStore } from "../../core/storage/store.js";
@@ -170,14 +170,30 @@ export const importCmd: Command = {
 
       // format === "lcx"
       const localAccounts = store.listAccounts();
-      if (!targetAccount) {
-        console.error("离愁轩导入必须通过 --account <accountKey> 指定目标账号。");
-        printLocalAccounts(localAccounts, show);
-        return 1;
-      }
-      const account = store.getAccount(targetAccount);
-      if (!account) {
-        console.error(`本地不存在指定账号：${maskKey(targetAccount, show)}`);
+      let account: AccountRow;
+      if (targetAccount) {
+        const found = store.getAccount(targetAccount);
+        if (!found) {
+          console.error(`本地不存在指定账号：${maskKey(targetAccount, show)}`);
+          printLocalAccounts(localAccounts, show);
+          return 1;
+        }
+        account = found;
+      } else if (ctx.bool("new-account")) {
+        try {
+          const r = resolveLcxAccount(readLcxMeta(text), localAccounts);
+          account = r.account;
+          console.log(
+            r.matched
+              ? `按文件 UID 匹配到本地账号 ${maskKey(account.accountKey, show)}`
+              : `本地无对应账号，将按文件 UID 新建账号 ${maskKey(account.accountKey, show)}（落库时才写入）`,
+          );
+        } catch (e) {
+          console.error(`离愁轩文件校验失败：${(e as Error).message}`);
+          return 1;
+        }
+      } else {
+        console.error("离愁轩导入必须通过 --account <accountKey> 指定目标账号，或加 --new-account 按文件 UID 匹配/新建。");
         printLocalAccounts(localAccounts, show);
         return 1;
       }

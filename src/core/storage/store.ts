@@ -88,7 +88,18 @@ export class GachaStore {
   static open(dataDir: string): GachaStore {
     if (dataDir === ":memory:") return new GachaStore(new DatabaseSync(":memory:"));
     fs.mkdirSync(dataDir, { recursive: true });
-    return new GachaStore(new DatabaseSync(path.join(dataDir, "gacha.sqlite")));
+    const db = new DatabaseSync(path.join(dataDir, "gacha.sqlite"));
+    try {
+      return new GachaStore(db);
+    } catch (err) {
+      // 非 SQLite/损坏文件：初始化失败时必须释放句柄，否则 Windows 上文件被占用无法删除
+      try {
+        db.close();
+      } catch {
+        /* ignore */
+      }
+      throw err;
+    }
   }
 
   close(): void {

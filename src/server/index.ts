@@ -21,6 +21,8 @@ export interface AppDeps {
   fetch?: typeof fetch;
   sleep?: (ms: number) => Promise<void>;
   cacheDiscover?: DiscoverOptions;
+  /** 注入以便测试：默认在系统文件管理器中打开目录 */
+  openFolder?: (dir: string) => void;
   version: string;
 }
 
@@ -42,6 +44,7 @@ export function createApp(o: AppOptions) {
     fetch: o.deps?.fetch,
     sleep: o.deps?.sleep,
     cacheDiscover: o.deps?.cacheDiscover,
+    openFolder: o.deps?.openFolder,
     version: o.deps?.version ?? VERSION,
     analysis:
       o.deps?.analysis ??

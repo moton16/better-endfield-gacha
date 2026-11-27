@@ -6,7 +6,7 @@
  * MoguJunn（MIT License）的离愁轩救援解析思路。
  */
 import { LCX_BUILTIN_ITEMS, LCX_BUILTIN_POOLS } from "../data/lcx-catalog.js";
-import type { GachaRecord, RecordType } from "../types.js";
+import { buildAccountKey, type AccountRow, type GachaRecord, type RecordType } from "../types.js";
 import { ImportError, LIMITS, validateRecord } from "./validate.js";
 
 export interface PoolMapEntry {
@@ -35,6 +35,71 @@ export function looksLikeLcx(doc: unknown): boolean {
   if (d.code !== 0 || !d.data || typeof d.data !== "object" || Array.isArray(d.data)) return false;
   const data = d.data as Record<string, unknown>;
   return Array.isArray(data.list) && data.uid != null && String(data.uid).trim() !== "";
+}
+
+export interface LcxFileMeta {
+  uid: string;
+  nickName: string;
+  server: string;
+  serverId: string;
+}
+
+/** 只读取离愁轩文件头部身份信息（不校验记录），用于在目标账号未知时建档/匹配。 */
+export function readLcxMeta(text: string): LcxFileMeta {
+  if (Buffer.byteLength(text, "utf8") > LIMITS.maxFileBytes) throw new ImportError("文件过大");
+  const clean = text.startsWith("\uFEFF") ? text.slice(1) : text;
+  let doc: unknown;
+  try {
+    doc = JSON.parse(clean);
+  } catch {
+    throw new ImportError("不是合法 JSON");
+  }
+  if (!looksLikeLcx(doc)) {
+    throw new ImportError("不是离愁轩导出格式（需要 code=0 且含 data.uid 与 data.list）");
+  }
+  const d = (doc as { data: Record<string, unknown> }).data;
+  const uid = String(d.uid).trim();
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(uid)) throw new ImportError("data.uid 格式非法（仅允许字母数字下划线连字符，≤64 位）", "data.uid");
+  return {
+    uid,
+    nickName: String(d.nickName ?? "").trim().slice(0, 64),
+    server: String(d.server ?? "").trim().slice(0, 32),
+    serverId: String(d.serverId ?? "").trim().slice(0, 8),
+  };
+}
+
+/**
+ * 为离愁轩导入确定目标账号：本地已有 roleId/bindingUid 等于文件 UID 的账号则复用；
+ * 否则按文件 UID 新建一个 source=import 的国服账号（空库导入场景）。
+ */
+export function resolveLcxAccount(
+  meta: LcxFileMeta,
+  existing: AccountRow[],
+  now = Date.now(),
+): { account: AccountRow; matched: boolean } {
+  const hit = existing.find((a) => a.roleId === meta.uid || a.bindingUid === meta.uid);
+  if (hit) return { account: hit, matched: true };
+  const bili = /bili/i.test(meta.server);
+  const channelMasterId = bili ? "2" : "1";
+  const accountKey = buildAccountKey({ region: "cn", channelMasterId, bindingUid: meta.uid, roleId: meta.uid });
+  const same = existing.find((a) => a.accountKey === accountKey);
+  if (same) return { account: same, matched: true };
+  return {
+    matched: false,
+    account: {
+      accountKey,
+      region: "cn",
+      channelMasterId,
+      bindingUid: meta.uid,
+      roleId: meta.uid,
+      nickname: meta.nickName,
+      serverId: meta.serverId || "1",
+      serverName: "",
+      channelName: bili ? "bilibili服" : "官服",
+      source: "import",
+      updatedAt: now,
+    },
+  };
 }
 
 function buildLocalPoolIndex(localRecords: GachaRecord[]): Map<string, Map<string, PoolMapEntry>> {

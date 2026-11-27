@@ -398,6 +398,39 @@ export async function mockFetch<T>(
     return { file: "gacha-backup-mock.sqlite" } as T;
   }
 
+  if (pathname === "/api/export/save" && method === "POST") {
+    const body = (init.body ?? {}) as { format?: string };
+    return {
+      file: `beg-export-mock.${body.format === "csv" ? "csv" : "json"}`,
+      dir: "C:\\mock\\data\\exports",
+      bytes: 2048,
+      accounts: 1,
+      records: 50,
+    } as T;
+  }
+
+  if (pathname === "/api/open-folder" && method === "POST") {
+    return { dir: "C:\\mock\\data" } as T;
+  }
+
+  if (pathname === "/api/backups" && method === "GET") {
+    return {
+      dir: "C:\\mock\\data\\backups",
+      files: [{ file: "gacha-backup-mock.sqlite", size: 40960, mtime: 1760000000000 }],
+    } as T;
+  }
+
+  if (pathname === "/api/backup/restore" && method === "POST") {
+    const body = (init.body ?? {}) as { apply?: boolean };
+    return {
+      plans: [{ maskedKey: "cn_2_#11aa22bb", total: 50, added: 3, duplicates: 47, conflicts: 0, skipped: 0 }],
+      warnings: [],
+      unresolvedPools: [],
+      applied: body.apply === true,
+      ...(body.apply === true ? { backup: "gacha-backup-mock-pre.sqlite" } : {}),
+    } as T;
+  }
+
   throw new Error(`Mock endpoint not handled: ${method} ${path}`);
 }
 
