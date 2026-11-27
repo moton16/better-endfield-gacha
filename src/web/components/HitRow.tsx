@@ -31,7 +31,7 @@ export function HitRow({
       : isMultiGold
         ? "multi"
         : null;
-  const rowTitle = `${hit.itemName}${hit.isNew ? " · NEW" : ""} · ${hit.pity} 抽${hit.isFree ? "（免费）" : ""}${hit.isUp === false ? " · 歪" : ""} · ${fmtTs(hit.gachaTs)}`;
+  const rowTitle = `${hit.itemName}${hit.isNew ? " · NEW" : ""} · ${hit.pity} 抽${hit.isFree ? "（免费十连）" : ""}${hit.isUp === false ? " · 歪" : ""} · ${fmtTs(hit.gachaTs)}`;
 
   const isLongBar = max > 0 && hit.pity / Math.min(max, 70) >= 0.78;
 
@@ -56,19 +56,18 @@ export function HitRow({
         <div class="hit-col">
           <div class="barwrap">
             <div
-              class={`bar stripe-${hit.tone}${hit.isFree ? " has-free" : ""}`}
+              class={`bar stripe-${hit.tone}`}
               style={{ width: `${barWidth(hit.pity, max)}%`, backgroundColor: TONE_VAR[hit.tone] }}
               role="img"
-              aria-label={`${hit.itemName} ${hit.pity} 抽${hit.isUp === false ? "，歪" : ""}`}
+              aria-label={`${hit.itemName} ${hit.pity} 抽${hit.isFree ? " 免费十连" : ""}${hit.isUp === false ? "，歪" : ""}`}
             >
               <span class="bar-num">{hit.pity}</span>
               <span class="bar-unit">抽</span>
-              {hit.isFree && <span class="bar-free">·免费</span>}
             </div>
 
-            {hit.luck && <span class={`tag ${hit.luck}`}>{LUCK_LABEL[hit.luck]}</span>}
+            {!hit.isFree && hit.luck && <span class={`tag ${hit.luck}`}>{LUCK_LABEL[hit.luck]}</span>}
 
-            {hit.prevPoolDiff !== undefined && hit.prevPoolDiff > 0 && (
+            {!hit.isFree && hit.prevPoolDiff !== undefined && hit.prevPoolDiff > 0 && (
               <span class="diff-tag">已垫{hit.prevPoolDiff}抽</span>
             )}
 

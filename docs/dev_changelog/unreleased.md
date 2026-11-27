@@ -80,3 +80,13 @@
   - 删除 `WeaponTenRollRow.tsx` 及对应 CSS，移除「看十连 / 看水位」切换逻辑，武器池统一直接渲染水位进度条视图（`PendingRow` + `HitRow` + 五星开关明细）。
 - **测试与构建预算修正（`tests/web-{bar,ui,media,build}.test.ts*`）**：
   - 修复 `tests/web-build.test.ts` 在 Vitest `NODE_ENV=test` 下未还原 `"production"` 导致 Vite 打入调试 JSX 代码的假超限问题，恢复真实生产产物体积校验（约 `145 KB` < `200 KB`）；同步更新 `web-bar` / `web-ui` / `web-media` 单测与集成测试。
+
+### [ANALYSIS-FREE-QUOTA] — moton16,2026-11-27,Antigravity — 免费十连保底/展示彻底隔离与角色池武库配额产出统计
+> **涵盖提交**：修复免费十连出 6★ 误带入付费小保底与跨池垫抽 Bug，补充各角色池武库配额产出。
+
+- **分析引擎修正（`src/core/analysis/{config,types,char}.ts`）**：
+  - `char.ts` 保持既有全池抽数与付费大/小保底计数不变，修正免费十连（`isFree === true`）出 6★ 时的归因逻辑：彻底隔离付费 `small`、`carryEntry`（`prevPoolDiff`）与付费 5★ 陪跑周期（`subTracker`），免费十连里的 5★ 仅归属该免费批次；同批单金固定按批次总抽数（通常 `10`）显示，同批多金按正序位置差拆分配齐批次总抽数（如第 2、4 发出金依次为 `2`、`8` 抽，新→旧展示为 `8`、`2` 抽），`tone` 按实际批内抽数计算（永久绿色）、`luck = null`，且照常判定 `isUp` / 歪。
+  - `config.ts` / `types.ts` / `char.ts` 新增 `ARSENAL_QUOTA_BY_RARITY`（`6★: 2000, 5★: 200, 4★: 20`）与 `PoolGroup.arsenalQuota`，统计每个角色池含免费十连在内的全部出货武库配额产出。
+- **前端展示对齐（`src/web/{lib/bar.ts,components/PoolSection.tsx,components/HitRow.tsx,styles/components.css}`）**：
+  - `bar.ts` 新增 `groupArsenalQuota(group)`（兼容缺失 `arsenalQuota` 的历史夹具），`PoolSection.tsx` 在角色池头部 `.pool-meta-row` 与详情面板补充「产出 [武库配额图标] xxx」（武器池不展示），并将免费十连出金统一归入付费区块下方与空免费批次按时间戳新→旧混排（同批多金共享单个灰底 `免费十连` 徽标）；`HitRow.tsx` 对免费出金移除 `·免费`、`超欧/超非` 与 `已垫XX抽`，保留 `歪` 印章。
+- **验证与测试（`tests/{analysis,web-bar,web-ui}.test.ts*`）**：更新并补充跨池垫抽+免费出金隔离、同批免费双金拆分配齐 10 抽、角色池武库配额产出与武器池排除等用例。

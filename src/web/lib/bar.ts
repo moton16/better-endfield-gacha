@@ -1,5 +1,5 @@
 import { tone } from "../../core/analysis/common.js";
-import { CHAR_JOINT, CHAR_RERUN } from "../../core/analysis/config.js";
+import { ARSENAL_QUOTA_BY_RARITY, CHAR_JOINT, CHAR_RERUN } from "../../core/analysis/config.js";
 import type {
   AccountAnalysis,
   AccountGlobalSummary,
@@ -229,6 +229,17 @@ export function fmtCompactCost(n: number): string {
   if (n >= 1e8) return `${(n / 1e7).toFixed(2)}m`;
   if (n >= 1e5) return `${(n / 1e3).toFixed(1)}k`;
   return String(Math.round(n));
+}
+
+/** 角色池产出的武库配额合计（优先读分析结果，缺省按 6★2000/5★200/4★20 计算；武器池返回 null） */
+export function groupArsenalQuota(group: PoolGroup): number | null {
+  if (group.kind !== "char") return null;
+  if (typeof group.arsenalQuota === "number") return group.arsenalQuota;
+  return (
+    group.count6 * ARSENAL_QUOTA_BY_RARITY[6] +
+    group.count5 * ARSENAL_QUOTA_BY_RARITY[5] +
+    group.count4 * ARSENAL_QUOTA_BY_RARITY[4]
+  );
 }
 
 /** 兼容缺少 analysis.global 的旧响应/测试夹具 */

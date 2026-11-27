@@ -139,12 +139,12 @@ describe("analysis engine (W1)", () => {
     expect(res.groups[0]!.freeBatches).toEqual([{ gachaTs: "1000", size: 10, sixStars: 0 }]);
   });
 
-  it("2. 免费抽不计入且不重置后续计数；免费 6★ 取当时计数、luck 为 null", () => {
-    // 场景 A：10 条免费 + 20 条付费出 6★ → pity=20
+  it("2. 免费十连完全独立（不吃已垫/不计保底/不重置），单金记批次总抽数 10、多金按位置凑齐 10 抽，并准确计算武库配额产出", () => {
+    // 场景 A：10 条免费（无 6★） + 19 条付费 + 1 条付费 6★ → pity=20，武库配额=2000 + 29*20 = 2580
     const recordsA = [
-      ...mkMany(1, 10, 4, { poolId: "sp_1", free: true }),
-      ...mkMany(11, 19, 4, { poolId: "sp_1", free: false }),
-      mk({ n: 30, rarity: 6, poolId: "sp_1", free: false, id: "U1" }),
+      ...mkMany(1, 10, 4, { poolId: "sp_1", free: true, ts: 1000 }),
+      ...mkMany(11, 19, 4, { poolId: "sp_1", free: false, ts: 2000 }),
+      mk({ n: 30, rarity: 6, poolId: "sp_1", free: false, id: "U1", ts: 2000 }),
     ];
     const resA = analyzeAccount({
       accountKey: ACC_KEY,
@@ -157,32 +157,98 @@ describe("analysis engine (W1)", () => {
     expect(resA.groups[0]!.hits[0]!.pity).toBe(20);
     expect(resA.groups[0]!.free).toBe(10);
     expect(resA.groups[0]!.paid).toBe(20);
+    expect(resA.groups[0]!.total).toBe(30);
+    expect(resA.groups[0]!.arsenalQuota).toBe(2000 + 29 * 20);
 
-    // 场景 B：付费 10 抽后免费出 6★（取计数 10，luck=null，不重置），再 10 抽付费出 6★（计数 20）
+    // 场景 B：池 1 垫 21 抽；池 2 先付费 30 抽（含 1 付费 5★），再免费十连出 1 歪 6★，再付费 10 抽出 UP 6★
+    // 免费 6★ 必须独立记 10 抽、标歪、不挂已垫21抽、不混入付费5★、不重置小保底；后续付费 6★ pity=61 且带 prevPoolDiff=21
     const recordsB = [
-      ...mkMany(1, 10, 4, { poolId: "sp_2", free: false }),
-      mk({ n: 11, rarity: 6, poolId: "sp_2", free: true, id: "X_FREE" }),
-      ...mkMany(12, 9, 4, { poolId: "sp_2", free: false }),
-      mk({ n: 21, rarity: 6, poolId: "sp_2", free: false, id: "U2" }),
+      ...mkMany(1, 21, 4, { poolId: "sp_prev", poolName: "前池", free: false, ts: 1000 }),
+      ...mkMany(22, 29, 4, { poolId: "sp_2", poolName: "星耀池", free: false, ts: 2000 }),
+      mk({ n: 51, rarity: 5, poolId: "sp_2", poolName: "星耀池", free: false, id: "C5_PAID", name: "付费五", ts: 2000 }),
+      // 免费十连：第 3 发出歪 6★ X_FREE（共 10 抽）
+      ...mkMany(52, 2, 4, { poolId: "sp_2", poolName: "星耀池", free: true, ts: 3000 }),
+      mk({ n: 54, rarity: 6, poolId: "sp_2", poolName: "星耀池", free: true, id: "X_FREE", name: "常驻六", ts: 3000 }),
+      ...mkMany(55, 7, 4, { poolId: "sp_2", poolName: "星耀池", free: true, ts: 3000 }),
+      // 再付费 10 抽出 UP
+      ...mkMany(62, 9, 4, { poolId: "sp_2", poolName: "星耀池", free: false, ts: 4000 }),
+      mk({ n: 71, rarity: 6, poolId: "sp_2", poolName: "星耀池", free: false, id: "U2", name: "限定二", ts: 4000 }),
     ];
     const resB = analyzeAccount({
       accountKey: ACC_KEY,
       records: recordsB,
-      pools: [pool("sp_2", ["U2"])],
+      pools: [pool("sp_prev", ["U_P"], "前池"), pool("sp_2", ["U2"], "星耀池")],
       rerunChar: [],
       rerunWeapon: [],
       now: 1,
     });
+    const sp2 = resB.groups.find((g) => g.poolId === "sp_2")!;
+    expect(sp2.total).toBe(50);
+    expect(sp2.paid).toBe(40);
+    expect(sp2.free).toBe(10);
+    expect(sp2.arsenalQuota).toBe(2 * 2000 + 1 * 200 + 47 * 20);
     // hits 按新 → 旧排列
-    const hits = resB.groups[0]!.hits;
-    expect(hits).toHaveLength(2);
-    expect(hits[0]!.pity).toBe(20); // 第21抽付费6★，未被免费6★重置
-    expect(hits[0]!.isFree).toBe(false);
-    expect(hits[1]!.pity).toBe(10); // 免费6★取当时计数
-    expect(hits[1]!.isFree).toBe(true);
-    expect(hits[1]!.luck).toBeNull();
-    // avgPity6 只算 paidHits：只有 20
-    expect(resB.overview.limited.avgPity6).toBe(20);
+    expect(sp2.hits).toHaveLength(2);
+    expect(sp2.hits[0]).toMatchObject({
+      itemId: "U2",
+      pity: 61, // 21 + 30 + 10，未被免费 6★ 重置
+      isFree: false,
+      isUp: true,
+      prevPoolDiff: 21,
+      subHits5: [{ itemId: "C5_PAID", itemName: "付费五", count: 1 }],
+    });
+    expect(sp2.hits[1]).toMatchObject({
+      itemId: "X_FREE",
+      pity: 10, // 整批免费十连共 10 抽，不混入 51
+      isFree: true,
+      isUp: false, // 照常判定 歪
+      tone: "green",
+      luck: null,
+      subHits5: [],
+    });
+    expect(sp2.hits[1]!.prevPoolDiff).toBeUndefined();
+    // avgPity6 只算 paidHits：只有 61；offBanner/upCount 正常统计 1/1
+    expect(resB.overview.limited.avgPity6).toBe(61);
+    expect(resB.overview.limited.offBanner).toBe(1);
+    expect(resB.overview.limited.upCount).toBe(1);
+
+    // 场景 C：同一发免费十连出多个 6★（第 2 发出梨诺，第 4 发出诀）→ 诀 8 抽、梨诺 2 抽，凑齐 10 发
+    const recordsC = [
+      mk({ n: 101, rarity: 4, poolId: "sp_c", free: true, ts: 5000 }),
+      mk({ n: 102, rarity: 6, poolId: "sp_c", free: true, id: "UP_LI", name: "梨诺", ts: 5000 }),
+      mk({ n: 103, rarity: 5, poolId: "sp_c", free: true, id: "C5_F", name: "免费五", ts: 5000 }),
+      mk({ n: 104, rarity: 6, poolId: "sp_c", free: true, id: "JUE", name: "诀", ts: 5000 }),
+      ...mkMany(105, 6, 4, { poolId: "sp_c", free: true, ts: 5000 }),
+    ];
+    const resC = analyzeAccount({
+      accountKey: ACC_KEY,
+      records: recordsC,
+      pools: [pool("sp_c", ["UP_LI"])],
+      rerunChar: [],
+      rerunWeapon: [],
+      now: 1,
+    });
+    const spC = resC.groups[0]!;
+    expect(spC.arsenalQuota).toBe(2 * 2000 + 1 * 200 + 7 * 20);
+    expect(spC.hits).toHaveLength(2);
+    expect(spC.hits[0]).toMatchObject({
+      itemId: "JUE",
+      pity: 8,
+      isFree: true,
+      isUp: false,
+      tone: "green",
+      luck: null,
+      subHits5: [{ itemId: "C5_F", itemName: "免费五", count: 1 }],
+    });
+    expect(spC.hits[1]).toMatchObject({
+      itemId: "UP_LI",
+      pity: 2,
+      isFree: true,
+      isUp: true,
+      tone: "green",
+      luck: null,
+      subHits5: [],
+    });
   });
 
   it("3. 歪判定与未知 UP 提示：仅非 Standard/Beginner/constant 池未知 UP 时才在 notes 提示", () => {

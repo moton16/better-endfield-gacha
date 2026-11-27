@@ -1,9 +1,9 @@
 import { useState } from "preact/hooks";
 import { CHAR_BEGINNER, CHAR_JOINT, CHAR_STANDARD } from "../../core/analysis/config.js";
 import type { PoolGroup } from "../api/types.js";
-import { barWidth, fmtMonthDay, fmtShortDateRange, fmtTs } from "../lib/bar.js";
+import { barWidth, fmtMonthDay, fmtShortDateRange, fmtTs, groupArsenalQuota } from "../lib/bar.js";
 import { useMediaManifest } from "../lib/media.js";
-import { Avatar, bannerFor, iconFor, MiniItemTile } from "./Avatar.js";
+import { Avatar, bannerFor, currencyIconFor, iconFor, MiniItemTile } from "./Avatar.js";
 import { HitRow } from "./HitRow.js";
 import { PendingRow } from "./PendingRow.js";
 
@@ -50,6 +50,7 @@ export function PoolSection({
   const [expanded, setExpanded] = useState(false);
   const [showPityHelp, setShowPityHelp] = useState(false);
   const [failedHeroUrl, setFailedHeroUrl] = useState<string | null>(null);
+  const [failedArsenalUrl, setFailedArsenalUrl] = useState<string | null>(null);
   useMediaManifest();
 
   if (group.total === 0) return null;
@@ -58,13 +59,18 @@ export function PoolSection({
   const dateRange = fmtShortDateRange(group.firstTs, group.lastTs);
   const hero = resolveHeaderArt(group);
   const effectiveHero = hero && hero.url !== failedHeroUrl ? hero : null;
+  const arsenalQuota = groupArsenalQuota(group);
+  const rawArsenalUrl = arsenalQuota !== null ? currencyIconFor("item_gachabyproducts_weapongold") : null;
+  const arsenalUrl = rawArsenalUrl && rawArsenalUrl !== failedArsenalUrl ? rawArsenalUrl : null;
   const isSharedScope =
     group.kind === "char" && group.poolType !== CHAR_JOINT;
 
+  const paidHits = group.hits.filter((h) => !h.isFree);
+  const freeHits = group.hits.filter((h) => h.isFree);
+
   // 同批（gachaTs + 付费）6★ 计数（用于“十连双金/三金”丝带与金底）
   const batchGoldCounts = new Map<string, number>();
-  for (const h of group.hits) {
-    if (h.isFree) continue;
+  for (const h of paidHits) {
     const k = `${h.gachaTs}|0`;
     batchGoldCounts.set(k, (batchGoldCounts.get(k) ?? 0) + 1);
   }
@@ -74,7 +80,27 @@ export function PoolSection({
     group.pending > 0 && (group.isCurrent || !isSharedScope);
 
   const freeBatches = group.freeBatches ?? [];
-  const hasAnyRecordRow = group.hits.length > 0 || showPendingRow || freeBatches.length > 0;
+  type FreeEntry =
+    | { kind: "hits"; gachaTs: string; hits: typeof freeHits }
+    | { kind: "empty"; gachaTs: string; size: number };
+
+  const freeEntries: FreeEntry[] = [];
+  const freeHitBuckets = new Map<string, typeof freeHits>();
+  for (const h of freeHits) {
+    const ts = h.gachaTs || "0";
+    const bucket = freeHitBuckets.get(ts);
+    if (bucket) bucket.push(h);
+    else freeHitBuckets.set(ts, [h]);
+  }
+  for (const [gachaTs, hits] of freeHitBuckets) {
+    freeEntries.push({ kind: "hits", gachaTs, hits });
+  }
+  for (const fb of freeBatches) {
+    freeEntries.push({ kind: "empty", gachaTs: fb.gachaTs || "0", size: fb.size });
+  }
+  freeEntries.sort((a, b) => Number(b.gachaTs) - Number(a.gachaTs));
+
+  const hasAnyRecordRow = paidHits.length > 0 || showPendingRow || freeEntries.length > 0;
 
   return (
     <section class="pool-section" aria-label={group.title}>
@@ -122,6 +148,25 @@ export function PoolSection({
                   ?
                 </button>
               </span>
+              {arsenalQuota !== null && (
+                <span
+                  class="meta-award"
+                  title={`本池产出武库配额：${arsenalQuota}（6★ 2000 / 5★ 200 / 4★ 20）`}
+                >
+                  <span class="meta-award-label">产出</span>
+                  {arsenalUrl ? (
+                    <img
+                      class="meta-award-icon"
+                      src={arsenalUrl}
+                      alt="武库配额"
+                      onError={() => setFailedArsenalUrl(arsenalUrl)}
+                    />
+                  ) : (
+                    <span class="meta-award-unit">配额</span>
+                  )}
+                  <strong class="meta-num">{arsenalQuota}</strong>
+                </span>
+              )}
               {group.bigPity && group.bigPity.remaining > 0 && (
                 <span class="meta-pity-rem">大保底余 {group.bigPity.remaining}</span>
               )}
@@ -186,6 +231,7 @@ export function PoolSection({
           <div>
             抽数构成：付费 {group.paid} 抽 · 免费 {group.free} 抽
           </div>
+          {arsenalQuota !== null && <div>武库配额产出：{arsenalQuota}</div>}
           <div>
             时间范围：{fmtTs(group.firstTs)} ~ {fmtTs(group.lastTs)}
           </div>
@@ -212,9 +258,9 @@ export function PoolSection({
                 pendingSubHits5={group.pendingSubHits5}
               />
             )}
-            {group.hits.map((hit) => {
+            {paidHits.map((hit) => {
               const bk = `${hit.gachaTs}|0`;
-              const goldCnt = hit.isFree ? 0 : (batchGoldCounts.get(bk) ?? 0);
+              const goldCnt = batchGoldCounts.get(bk) ?? 0;
               const isFirstOfMulti = goldCnt >= 2 && !seenMultiBatch.has(bk);
               if (isFirstOfMulti) seenMultiBatch.add(bk);
               return (
@@ -224,45 +270,58 @@ export function PoolSection({
                   max={group.smallPityMax}
                   showFiveStar={showFiveStar}
                   multiGoldCount={goldCnt}
-                  showRibbon={hit.isFree || isFirstOfMulti}
+                  showRibbon={isFirstOfMulti}
                 />
               );
             })}
-            {freeBatches.map((fb, idx) => (
-              <div
-                class="com-record-item"
-                key={`free-${fb.gachaTs}-${idx}`}
-                title={`免费批次 ${fb.size} 抽（未出 6★） · ${fmtTs(fb.gachaTs)}`}
-              >
-                <div class="record-desc free-muted">
-                  <span class="desc-text">免费十连</span>
-                </div>
-                <div class="record-top">
-                  <Avatar name="×" rarity={0} isEmptyFree />
-                  <div class="hit-col">
-                    <div class="barwrap">
-                      <div
-                        class="bar stripe-green"
-                        style={{
-                          width: `${barWidth(fb.size, group.smallPityMax)}%`,
-                          backgroundColor: "var(--bar-green)",
-                        }}
-                        role="img"
-                        aria-label={`免费十连 ${fb.size} 抽`}
-                      >
-                        <span class="bar-num">{fb.size}</span>
-                        <span class="bar-unit">抽</span>
+            {freeEntries.map((entry, idx) =>
+              entry.kind === "hits" ? (
+                entry.hits.map((hit, hitIdx) => (
+                  <HitRow
+                    key={`${hit.seqId}-${hit.itemId}`}
+                    hit={hit}
+                    max={group.smallPityMax}
+                    showFiveStar={showFiveStar}
+                    multiGoldCount={0}
+                    showRibbon={hitIdx === 0}
+                  />
+                ))
+              ) : (
+                <div
+                  class="com-record-item"
+                  key={`free-${entry.gachaTs}-${idx}`}
+                  title={`免费十连 ${entry.size} 抽（未出 6★） · ${fmtTs(entry.gachaTs)}`}
+                >
+                  <div class="record-desc free-muted">
+                    <span class="desc-text">免费十连</span>
+                  </div>
+                  <div class="record-top">
+                    <Avatar name="×" rarity={0} isEmptyFree />
+                    <div class="hit-col">
+                      <div class="barwrap">
+                        <div
+                          class="bar stripe-green"
+                          style={{
+                            width: `${barWidth(entry.size, group.smallPityMax)}%`,
+                            backgroundColor: "var(--bar-green)",
+                          }}
+                          role="img"
+                          aria-label={`免费十连 ${entry.size} 抽`}
+                        >
+                          <span class="bar-num">{entry.size}</span>
+                          <span class="bar-unit">抽</span>
+                        </div>
                       </div>
                     </div>
                   </div>
+                  {showFiveStar && (
+                    <div class="record-bottom">
+                      <span class="record-time">{fmtMonthDay(entry.gachaTs)}</span>
+                    </div>
+                  )}
                 </div>
-                {showFiveStar && (
-                  <div class="record-bottom">
-                    <span class="record-time">{fmtMonthDay(fb.gachaTs)}</span>
-                  </div>
-                )}
-              </div>
-            ))}
+              ),
+            )}
           </>
         )}
       </div>

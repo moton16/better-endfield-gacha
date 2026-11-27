@@ -78,11 +78,13 @@ describe("Web UI mock mode & interactions", () => {
     expect(badgeBox.getByText("超欧").parentElement?.textContent).toBe("超欧x2");
     expect(badgeBox.getByText("超非").parentElement?.textContent).toBe("超非x2");
 
-    // Pool groups on special tab + multi-gold, carry pity & free batch
+    // Pool groups on special tab + multi-gold, carry pity, arsenal quota & free batch
     expect(screen.getByText("合成特许寻访二期")).toBeTruthy();
     expect(screen.getByText("合成特许寻访一期")).toBeTruthy();
     expect(screen.getByText("已垫12抽")).toBeTruthy();
     expect(screen.getByText("免费十连")).toBeTruthy();
+    expect(screen.getAllByText("产出").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("8520")).toBeTruthy(); // 3*2000 + 6*200 + 66*20
     expect(screen.queryByText("合成重构寻访一期")).toBeNull();
 
     // Switch to rerun tab

@@ -14,6 +14,7 @@ import {
   fmtShortDateRange,
   fmtStatStartDate,
   fmtTs,
+  groupArsenalQuota,
   maskName,
   pendingTone,
   TONE_VAR,
@@ -133,6 +134,10 @@ describe("bar helpers", () => {
         notes: [],
       }),
     ).toEqual({ charCost: 10000, weaponCost: 9900 });
+
+    expect(groupArsenalQuota(makeGroup({ kind: "char", count6: 1, count5: 4, count4: 35 }))).toBe(3500);
+    expect(groupArsenalQuota(makeGroup({ kind: "char", arsenalQuota: 8600 }))).toBe(8600);
+    expect(groupArsenalQuota(makeGroup({ kind: "weapon", count6: 2, count5: 3, count4: 35 }))).toBeNull();
   });
 });
 
@@ -169,14 +174,24 @@ describe("HitRow & PendingRow", () => {
 
     rerender(
       <HitRow
-        hit={makeHit({ itemName: "未知干员", pity: 8, isUp: null, isFree: true, tone: "green", luck: "ou" })}
+        hit={makeHit({
+          itemName: "常驻歪卡",
+          pity: 10,
+          isUp: false,
+          isFree: true,
+          tone: "green",
+          luck: "ou",
+          prevPoolDiff: 21,
+        })}
         max={80}
       />,
     );
-    expect(screen.queryByText("歪")).toBeNull();
     expect(screen.getByText("免费十连")).toBeTruthy();
-    expect(screen.getByText("超欧")).toBeTruthy();
-    expect(screen.getByText("·免费")).toBeTruthy();
+    expect(screen.getByText("10")).toBeTruthy();
+    expect(screen.getByText("歪")).toBeTruthy();
+    expect(screen.queryByText("超欧")).toBeNull();
+    expect(screen.queryByText("·免费")).toBeNull();
+    expect(screen.queryByText(/已垫/)).toBeNull();
     expect(screen.queryByLabelText("同周期五星")).toBeNull();
   });
 
@@ -217,6 +232,8 @@ describe("PoolSection", () => {
     );
 
     expect(screen.getByText(/大保底余 78/)).toBeTruthy();
+    expect(screen.getByText(/产出/)).toBeTruthy();
+    expect(screen.getByText("3880")).toBeTruthy();
     expect(screen.getByTitle(/缺少 UP 信息/)).toBeTruthy();
 
     // Pity help popover
@@ -230,12 +247,37 @@ describe("PoolSection", () => {
     expect(screen.queryByText(/星级分布/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "详情" }));
     expect(screen.getByText(/星级分布：6★ 1 · 5★ 5 · 4★ 44/)).toBeTruthy();
+    expect(screen.getByText(/武库配额产出：3880/)).toBeTruthy();
     expect(screen.getByText(/官方累计/)).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "收起" }));
     expect(screen.queryByText(/星级分布/)).toBeNull();
 
-    // Weapon pool uses unified pity-bar view without any "看水位"/"看十连" toggle
+    // Free multi-gold renders under ONE 免费十连 badge below paid PendingRow
+    rerender(
+      <PoolSection
+        group={makeGroup({
+          total: 40,
+          paid: 30,
+          free: 10,
+          count6: 2,
+          count5: 4,
+          count4: 34,
+          arsenalQuota: 5480,
+          pending: 41,
+          hits: [
+            makeHit({ seqId: "104", itemId: "chr_jue", itemName: "诀", pity: 8, isFree: true, isUp: false, tone: "green", luck: null, gachaTs: "1760000100000" }),
+            makeHit({ seqId: "102", itemId: "chr_li", itemName: "梨诺", pity: 2, isFree: true, isUp: true, tone: "green", luck: null, gachaTs: "1760000100000" }),
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("5480")).toBeTruthy();
+    expect(screen.getAllByText("免费十连")).toHaveLength(1);
+    const barLabels = screen.getAllByRole("img").map((el) => el.getAttribute("aria-label"));
+    expect(barLabels).toEqual(["当前已垫 41 抽", "诀 8 抽 免费十连，歪", "梨诺 2 抽 免费十连"]);
+
+    // Weapon pool uses unified pity-bar view without any "看水位"/"看十连" toggle or 产出 quota
     rerender(
       <PoolSection
         group={makeGroup({
@@ -259,6 +301,7 @@ describe("PoolSection", () => {
       />,
     );
     expect(screen.getByText(/专武一/)).toBeTruthy();
+    expect(screen.queryByText(/产出/)).toBeNull();
     expect(screen.getByRole("img", { name: /当前已垫 3 抽/ })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /看水位|看十连/ })).toBeNull();
     expect(screen.queryByLabelText(/第 \d+ 个十连/)).toBeNull();

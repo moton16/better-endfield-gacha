@@ -15,7 +15,7 @@ export interface SubHitSummary {
 export interface SixStarHit {
   itemId: string;
   itemName: string;
-  /** 距上一个付费 6★ 的付费抽数（含本抽）；免费抽出的 6★ 取当时计数、不重置 */
+  /** 付费 6★：距上一个付费 6★ 的付费抽数；免费十连 6★：该批免费十连内的抽数分配（单金=批次总抽数如 10，多金则按批内位置拆分配齐批次总抽数） */
   pity: number;
   isFree: boolean;
   isNew: boolean;
@@ -25,9 +25,9 @@ export interface SixStarHit {
   seqId: string;
   tone: Tone;
   luck: Luck;
-  /** 从上一个同规则跨池共享卡池带入本池的已垫付费抽数（仅首轮出 6★ 时标注） */
+  /** 从上一个同规则跨池共享卡池带入本池的已垫付费抽数（仅首轮付费 6★ 标注，绝不挂在免费十连上） */
   prevPoolDiff?: number;
-  /** 本次 6★ 保底周期内抽出的 5★ 聚合明细 */
+  /** 本次 6★ 周期内抽出的 5★ 聚合明细（付费周期与免费十连批次严格隔离） */
   subHits5?: SubHitSummary[];
 }
 
@@ -78,6 +78,8 @@ export interface PoolGroup {
   count6: number;
   count5: number;
   count4: number;
+  /** 角色池按出货星级产出的武库配额合计（6★ 2000 / 5★ 200 / 4★ 20，武器池不填） */
+  arsenalQuota?: number;
   up6Ids: string[];
   upKnown: boolean;
   hits: SixStarHit[]; // 新 → 旧

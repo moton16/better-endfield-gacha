@@ -15,6 +15,13 @@ export const RULES = {
   weaponBigPity: 80,
 } as const;
 
+/** 角色池单抽产出武库配额（按出货稀有度累计，含免费十连） */
+export const ARSENAL_QUOTA_BY_RARITY = {
+  6: 2000,
+  5: 200,
+  4: 20,
+} as const;
+
 /** 展示阈值（从 UI 截图推断，供核心层与前端共用，勿在 UI 硬编码） */
 export const DISPLAY = {
   greenMax: 15,

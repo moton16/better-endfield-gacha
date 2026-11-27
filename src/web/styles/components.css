@@ -924,6 +924,27 @@
   color: rgba(20, 25, 30, 0.48);
 }
 
+.meta-award {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 4px;
+  font-size: 11px;
+  color: #14191e;
+}
+
+.meta-award-icon {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+  display: block;
+}
+
+.meta-award-unit {
+  font-size: 10px;
+  color: rgba(20, 25, 30, 0.72);
+}
+
 .help-dot-btn {
   width: 12px;
   height: 12px;
@@ -1243,10 +1264,7 @@
   background: #27e29b;
 }
 
-.record-desc.free {
-  background: #6ce0cd;
-}
-
+.record-desc.free,
 .record-desc.free-muted {
   background: rgba(0, 0, 0, 0.08);
 }
@@ -1296,10 +1314,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-.bar.has-free {
-  min-width: 82px;
-}
-
 .bar-num {
   font-family: var(--font-num);
   font-size: 16px;
@@ -1312,13 +1326,6 @@
   font-weight: 400;
   margin-left: 3px;
   color: #000000;
-}
-
-.bar-free {
-  font-size: 10px;
-  font-weight: 400;
-  margin-left: 2px;
-  color: rgba(0, 0, 0, 0.8);
 }
 
 .bar.stripe-green {
