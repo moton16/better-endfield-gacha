@@ -454,6 +454,14 @@ describe("Avatar, MiniItemTile & PoolSection manifest integration", () => {
         />
         <PoolSection
           group={makePoolGroup({
+            key: "char:E_CharacterGachaPoolType_Special:special_unmapped",
+            poolId: "special_unmapped",
+            title: "未录横幅限定池",
+            up6Ids: ["chr_0016_laevat"],
+          })}
+        />
+        <PoolSection
+          group={makePoolGroup({
             key: "char:E_CharacterGachaPoolType_Standard:standard",
             tab: "standard",
             poolType: "E_CharacterGachaPoolType_Standard",
@@ -467,11 +475,13 @@ describe("Avatar, MiniItemTile & PoolSection manifest integration", () => {
       </div>,
     );
 
-    const charHero = container.querySelector(".pool-head-art.kind-char") as HTMLImageElement | null;
+    const bannerHero = container.querySelector(".pool-head-art.kind-banner") as HTMLImageElement | null;
+    const fallbackCharHero = container.querySelector(".pool-head-art.kind-char") as HTMLImageElement | null;
     const weaponHero = container.querySelector(".pool-head-art.kind-weapon") as HTMLImageElement | null;
-    expect(charHero?.getAttribute("src")).toBe("./media/chars/chr_0016_laevat.webp");
+    expect(bannerHero?.getAttribute("src")).toBe("./media/banners/special_1_0_1.webp");
+    expect(fallbackCharHero?.getAttribute("src")).toBe("./media/chars/chr_0016_laevat.webp");
     expect(weaponHero?.getAttribute("src")).toBe("./media/weapons/wpn_sword_0006.webp");
-    expect(container.querySelectorAll(".pool-head-art").length).toBe(2);
+    expect(container.querySelectorAll(".pool-head-art").length).toBe(3);
   });
 
   it("loads ./media/manifest.json once on mount and silently ignores fetch errors", async () => {
@@ -505,8 +515,8 @@ describe("Avatar, MiniItemTile & PoolSection manifest integration", () => {
       expect(container.querySelectorAll("img.mini-tile-img").length).toBe(1);
     });
     expect(fetchOk).toHaveBeenCalledTimes(1);
-    const heroImg = container.querySelector(".pool-head-art.kind-char") as HTMLImageElement | null;
-    expect(heroImg?.getAttribute("src")).toBe("./media/chars/chr_0016_laevat.webp");
+    const heroImg = container.querySelector(".pool-head-art.kind-banner") as HTMLImageElement | null;
+    expect(heroImg?.getAttribute("src")).toBe("./media/banners/special_1_0_1.webp");
 
     // 运行时 <img> error 事件应优雅退回首字色块
     const firstImg = container.querySelector("img.avatar")!;

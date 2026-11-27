@@ -44,3 +44,11 @@
 ### [DATA-IO-ONECLICK] — Vodyanitsaaa,2026-11-27,Antigravity,Gemini 4 Hydrogen — fix(web): 合并 DataDialog 导入与恢复为单步操作，消除前置干跑门控
 - **`src/web/components/DataDialog.tsx`**：移除「预览导入（干跑）」→「确认导入」与「预览恢复」→「确认恢复」的两步禁用门控，统一简化为单枚「导入」主按钮与各备份条目的单枚「恢复」按钮，点击后直接 `apply: true` 写入（后端仍自动在操作前备份 `.sqlite` 且官方记录永不覆盖）并展示结果明细（总计/新增/重复/冲突/跳过/警告/未识别卡池/自动备份文件名）。
 - **文档与局部测试**：更新 `tests/web-ui.test.tsx`、`docs/DEVELOPER.md`、`CHANGELOG.md`、`QUICKSTART.md`；仅跑 `tsc` 与局部相关测试 `tests/web-ui.test.tsx`。
+
+### [UI-POOL-HEADER] — moton16,2026-11-27,Antigravity — fix(web): 回调角色横幅右移与武器柔和头图，移除头栏大保底余提示
+- **改动文件**：`src/web/components/PoolSection.tsx`、`src/web/styles/components.css`、`tests/web-media.test.tsx`、`tests/web-bar.test.tsx`、`docs/DEVELOPER.md`。
+- **代码改动概况**：
+  1. `resolveHeaderArt` 恢复角色池优先走 `bannerFor(poolId)` 横幅（无横幅池回退 `chars/` 头像）；`.pool-head-art-box` 置于 `z-index: 0`，位于 `.pool-head-backdrop`（`z-index: 1`）下方与背景融合。
+  2. 角色横幅定位至 `left: 38%; right: 0`（配套左缘渐变羽化与背景遮罩 `37.5% -> 60%`），人物正脸露在右侧亮区且不与左侧文字相撞；无横幅池回退 `96px` 柔和头像。
+  3. 武器头图放大至 `113px × 113px` 并右移至 `left: 49%`，以 `opacity: 0.65`、`filter: blur(0.9px) saturate(0.9)` 与径向羽化融入 `.theme-weapon` 暖橙渐层；同时移除头栏多余的 `大保底余 xx`。
+- **局部验证**：`pnpm typecheck`、`vitest run tests/web-media.test.tsx tests/web-bar.test.tsx` 与 `pnpm web:build` 通过。

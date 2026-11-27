@@ -248,7 +248,7 @@ describe("PoolSection", () => {
       />,
     );
 
-    expect(screen.getByText(/大保底余 78/)).toBeTruthy();
+    expect(screen.queryByText(/大保底余/)).toBeNull();
     expect(screen.getByText(/产出/)).toBeTruthy();
     expect(screen.getByText("3880")).toBeTruthy();
     expect(screen.getByTitle(/缺少 UP 信息/)).toBeTruthy();
