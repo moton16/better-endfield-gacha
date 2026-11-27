@@ -27,17 +27,12 @@ function resolveHeaderArt(
     return url ? { url, kind: "weapon" } : null;
   }
 
-  if (group.up6Ids.length > 1) {
-    const banner = bannerFor(group.poolId);
-    if (banner) return { url: banner, kind: "banner" };
-  }
+  const banner = bannerFor(group.poolId);
+  if (banner) return { url: banner, kind: "banner" };
 
   const primaryCharId = group.up6Ids[0] ?? group.hits.find((h) => h.itemId)?.itemId ?? "";
   const charPortrait = primaryCharId ? iconFor(primaryCharId) : null;
-  if (charPortrait) return { url: charPortrait, kind: "char" };
-
-  const banner = bannerFor(group.poolId);
-  return banner ? { url: banner, kind: "banner" } : null;
+  return charPortrait ? { url: charPortrait, kind: "char" } : null;
 }
 
 export function PoolSection({
@@ -105,7 +100,6 @@ export function PoolSection({
   return (
     <section class="pool-section" aria-label={group.title}>
       <div class={`pool-head ${poolThemeClass(group)}`}>
-        <div class="pool-head-backdrop" aria-hidden="true" />
         {effectiveHero && (
           <div class={`pool-head-art-box kind-${effectiveHero.kind}`} aria-hidden="true">
             <img
@@ -116,6 +110,7 @@ export function PoolSection({
             />
           </div>
         )}
+        <div class="pool-head-backdrop" aria-hidden="true" />
         <div class="pool-head-wrapper">
           <div class="pool-head-main">
             <div class="pool-title-row">
@@ -166,9 +161,6 @@ export function PoolSection({
                   )}
                   <strong class="meta-num">{arsenalQuota}</strong>
                 </span>
-              )}
-              {group.bigPity && group.bigPity.remaining > 0 && (
-                <span class="meta-pity-rem">大保底余 {group.bigPity.remaining}</span>
               )}
             </div>
           </div>
